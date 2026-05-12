@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Lint structural issues in a project's documentation."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from rag.lint import lint_project  # noqa: E402
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Run structural lint checks on project documentation"
+    )
+    parser.add_argument(
+        "--project",
+        type=str,
+        required=True,
+        help="Project name (from configs/projects/)",
+    )
+    parser.add_argument(
+        "--detailed",
+        action="store_true",
+        help="Include detailed issue information",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON",
+    )
+
+    args = parser.parse_args()
+    
+    try:
+        report = lint_project(args.project, detailed=args.detailed)
+        
+        if args.json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print(f"\n📋 Lint Report: {args.project}")
+            print(f"Status: {report['status']}")
+            print()
+            
+            if report.get("message"):
+                print(f"ℹ️  {report['message']}\n")
+                return
+            
+            stats = report.get("statistics", {})
+            print(f"📊 Statistics:")
+            print(f"  • Documents: {stats.get('total_documents', 0)}")
+            print(f"  • Chunks: {stats.get('total_chunks', 0)}")
+            print(f"  • Issues: {stats.get('total_issues', 0)}")
+            print()
+            
+            if stats.get("total_issues", 0) > 0:
+                print(f"🔴 Issues breakdown:")
+                for key in ["broken_links", "empty_documents", "orphan_pages", "missing_frontmatter", "duplicate_headings"]:
+                    count = stats.get(key, 0)
+                    if count > 0:
+                        print(f"  • {key}: {count}")
+                print()
+                
+                print(f"📝 Issues:")
+                for issue in report.get("issues", [])[:10]:  # Show first 10
+                    severity = issue.get("severity", "info")
+                    icon = {"critical": "🔴", "warning": "🟡", "info": "ℹ️"}.get(severity, "⚪")
+                    print(f"  {icon} [{issue['type']}] {issue['source_path']}: {issue['message']}")
+                
+                if len(report.get("issues", [])) > 10:
+                    print(f"  ... and {len(report['issues']) - 10} more issues")
+                print()
+            
+            print(f"💡 Recommendations:")
+            for rec in report.get("recommendations", []):
+                print(f"  • {rec}")
+            print()
+    
+    except Exception as e:
+        print(f"❌ Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

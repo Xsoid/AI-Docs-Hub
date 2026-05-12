@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from rag.config import get_project_config, load_project_configs  # noqa: E402
+from rag.lite import build_index  # noqa: E402
+
+
+def index_one(project: str, reindex: bool) -> dict[str, object]:
+    config = get_project_config(project)
+    if not config.root.exists():
+        raise ValueError(
+            f"Project root does not exist: {config.root}. "
+            "Set configs/projects/*.yaml root to an absolute external project path."
+        )
+    index = build_index(config, reindex=reindex)
+    return {
+        "project": project,
+        "namespace": index["namespace"],
+        "documents_count": index["documents_count"],
+        "chunks_count": index["chunks_count"],
+        "index_path": str(config.index_path),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Index project docs into local lite RAG storage.")
+    parser.add_argument("--project", help="Project name from configs/projects")
+    parser.add_argument("--all", action="store_true", help="Index all configured projects")
+    parser.add_argument("--reindex", action="store_true", help="Delete existing project index before writing")
+    args = parser.parse_args()
+
+    if not args.project and not args.all:
+        parser.error("Use --project NAME or --all")
+
+    names = sorted(load_project_configs()) if args.all else [args.project]
+    results = []
+    exit_code = 0
+    for name in names:
+        try:
+            results.append(index_one(str(name), args.reindex))
+        except Exception as exc:  # noqa: BLE001
+            exit_code = 1
+            results.append({"project": name, "error": str(exc)})
+
+    print(json.dumps({"results": results}, ensure_ascii=False, indent=2))
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

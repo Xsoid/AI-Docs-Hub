@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from rag.config import HUB_ROOT, load_project_configs, validate_project_config  # noqa: E402
+from rag.lite import check_project_secrets, collect_project_files  # noqa: E402
+from rag.security import scan_text_for_secrets  # noqa: E402
+
+DOCS_ROOT = HUB_ROOT / "docs-site" / "src" / "content" / "docs"
+PUBLIC_DIR = HUB_ROOT / "docs-site" / "public"
+GENERATED_DIR = HUB_ROOT / "storage" / "generated"
+
+
+def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+    lines = text.splitlines()
+    meta: dict[str, str] = {}
+    if lines and lines[0].strip() == "---":
+        for idx in range(1, len(lines)):
+            if lines[idx].strip() == "---":
+                for meta_line in lines[1:idx]:
+                    if ":" in meta_line:
+                        key, value = meta_line.split(":", 1)
+                        meta[key.strip()] = value.strip().strip('"').strip("'")
+                return meta, "\n".join(lines[idx + 1 :]).strip()
+    return meta, text.strip()
+
+
+def title_from_markdown(text: str, fallback: str, meta: dict[str, str] | None = None) -> str:
+    if meta and meta.get("title"):
+        return meta["title"]
+    for line in text.splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return fallback
+
+
+def read_hub_docs() -> list[dict[str, Any]]:
+    docs: list[dict[str, Any]] = []
+    for path in sorted(DOCS_ROOT.rglob("*.md")):
+        rel = path.relative_to(DOCS_ROOT).as_posix()
+        raw = path.read_text(encoding="utf-8")
+        meta, body = parse_frontmatter(raw)
+        if scan_text_for_secrets(body):
+            continue
+        docs.append(
+            {
+                "scope": "hub",
+                "project": "ai-docs-hub",
+                "namespace": "hub",
+                "source_path": f"docs-site/src/content/docs/{rel}",
+                "title": title_from_markdown(body, rel, meta),
+                "content": body,
+            }
+        )
+    return docs
+
+
+def read_project_docs() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    docs: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    for config in load_project_configs().values():
+        issues = validate_project_config(config)
+        if any(issue["level"] == "error" for issue in issues) or not config.root.exists():
+            warnings.append({"project": config.project, "skipped": True, "issues": issues})
+            continue
+        secret_report = check_project_secrets(config)
+        if secret_report["blocked_count"]:
+            warnings.append({"project": config.project, "skipped": True, "secret_report": secret_report})
+            continue
+        for path in collect_project_files(config):
+            rel = path.relative_to(config.root.resolve()).as_posix()
+            raw = path.read_text(encoding="utf-8", errors="replace")
+            meta, body = parse_frontmatter(raw)
+            docs.append(
+                {
+                    "scope": "project",
+                    "project": config.project,
+                    "namespace": config.namespace,
+                    "source_path": rel,
+                    "title": title_from_markdown(body, rel, meta),
+                    "content": body,
+                }
+            )
+    return docs, warnings
+
+
+def render_llms_index(docs: list[dict[str, Any]], warnings: list[dict[str, Any]]) -> str:
+    lines = [
+        "# AI Docs Hub",
+        "",
+        "Generated local documentation index for AI agents.",
+        "",
+        f"Generated at: {datetime.now(timezone.utc).isoformat()}",
+        "",
+        "## Important Rules",
+        "",
+        "- Project documentation remains inside each connected project.",
+        "- Namespaces must not be mixed unless explicitly requested.",
+        "- Generated files are derived artifacts.",
+        "",
+        "## Documentation Index",
+        "",
+    ]
+    for doc in docs:
+        lines.append(f"- [{doc['namespace']}] {doc['title']} - `{doc['source_path']}`")
+    if warnings:
+        lines.extend(["", "## Skipped Project Configs", ""])
+        for warning in warnings:
+            lines.append(f"- `{warning.get('project')}` skipped; see storage/generated/llms-report.json")
+    lines.extend(["", "Full content: `/llms-full.txt`", "Small context: `/llms-small.txt`", ""])
+    return "\n".join(lines)
+
+
+def render_llms_full(docs: list[dict[str, Any]]) -> str:
+    lines = [
+        "# AI Docs Hub Full Context",
+        "",
+        "Generated file. Do not edit manually.",
+        "",
+    ]
+    for doc in docs:
+        lines.extend(
+            [
+                "---",
+                f"scope: {doc['scope']}",
+                f"project: {doc['project']}",
+                f"namespace: {doc['namespace']}",
+                f"source_path: {doc['source_path']}",
+                f"title: {doc['title']}",
+                "---",
+                "",
+                doc["content"].strip(),
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def render_llms_small(docs: list[dict[str, Any]]) -> str:
+    lines = [
+        "# AI Docs Hub Small Context",
+        "",
+        "Generated file. Do not edit manually.",
+        "",
+    ]
+    for doc in docs:
+        excerpt = doc["content"].strip()
+        if len(excerpt) > 1200:
+            excerpt = excerpt[:1197].rstrip() + "..."
+        lines.extend(
+            [
+                f"## [{doc['namespace']}] {doc['title']}",
+                "",
+                f"Source: `{doc['source_path']}`",
+                "",
+                excerpt,
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def write_outputs(files: dict[str, str], report: dict[str, Any]) -> None:
+    PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    for name, content in files.items():
+        (PUBLIC_DIR / name).write_text(content, encoding="utf-8")
+        (GENERATED_DIR / name).write_text(content, encoding="utf-8")
+    (GENERATED_DIR / "llms-report.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def main() -> int:
+    hub_docs = read_hub_docs()
+    project_docs, warnings = read_project_docs()
+    docs = hub_docs + project_docs
+    files = {
+        "llms.txt": render_llms_index(docs, warnings),
+        "llms-full.txt": render_llms_full(docs),
+        "llms-small.txt": render_llms_small(docs),
+    }
+    report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "docs_count": len(docs),
+        "hub_docs_count": len(hub_docs),
+        "project_docs_count": len(project_docs),
+        "warnings": warnings,
+        "outputs": [str(PUBLIC_DIR / name) for name in files],
+    }
+    write_outputs(files, report)
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

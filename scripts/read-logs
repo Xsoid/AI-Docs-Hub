@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""Read indexing operation logs for a project."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from rag.logging import read_operation_log  # noqa: E402
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Read operation logs for a project"
+    )
+    parser.add_argument(
+        "--project",
+        type=str,
+        required=True,
+        help="Project name (from configs/projects/)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum number of log entries to show (default: 20)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON",
+    )
+    parser.add_argument(
+        "--filter",
+        type=str,
+        help="Filter by operation name (e.g., index_complete, secret_scan_blocked)",
+    )
+
+    args = parser.parse_args()
+    
+    try:
+        entries = read_operation_log(args.project, limit=args.limit)
+        
+        if args.filter:
+            entries = [e for e in entries if e.get("operation") == args.filter]
+        
+        if args.json:
+            print(json.dumps(entries, ensure_ascii=False, indent=2))
+        else:
+            if not entries:
+                print(f"📭 No operation logs found for '{args.project}'")
+                return
+            
+            print(f"\n📋 Operation Log: {args.project}")
+            print(f"{'Timestamp':<26} {'Operation':<25} {'Details'}")
+            print("-" * 80)
+            
+            for entry in entries:
+                timestamp = entry.get("timestamp", "")[:19]
+                operation = entry.get("operation", "unknown")
+                
+                details_parts = []
+                if operation == "index_complete":
+                    docs = entry.get("documents_count", 0)
+                    chunks = entry.get("chunks_count", 0)
+                    duration = entry.get("duration_seconds", 0)
+                    details_parts.append(f"docs={docs}, chunks={chunks}, {duration}s")
+                elif operation == "index_error":
+                    error_type = entry.get("error_type", "")
+                    details_parts.append(f"{error_type}: {entry.get('error_message', '')[:40]}")
+                elif operation == "secret_scan_blocked":
+                    blocked = entry.get("blocked_count", 0)
+                    details_parts.append(f"blocked={blocked} files")
+                elif operation == "lint_check":
+                    broken = entry.get("broken_links_count", 0)
+                    orphans = entry.get("orphan_pages_count", 0)
+                    issues = entry.get("total_issues", 0)
+                    details_parts.append(f"broken_links={broken}, orphans={orphans}, total={issues}")
+                
+                details = ", ".join(details_parts)
+                print(f"{timestamp:<26} {operation:<25} {details}")
+            
+            print()
+    
+    except Exception as e:
+        print(f"❌ Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

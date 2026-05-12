@@ -1,0 +1,136 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+.envrc
+.envrc.*
+.direnv/
+*.local
+*.local.*
+
+# Local project bindings
+configs/projects/*.yaml
+configs/projects/*.yml
+!configs/projects/example.yaml
+!configs/projects/*.example.yaml
+!configs/projects/*.example.yml
+
+# Secret-looking files and local data dumps
+*secret*
+*token*
+*password*
+*passwd*
+*credential*
+*cookie*
+*session*
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.csr
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.dump
+*.sql.gz
+*.bak
+*.backup
+!scripts/check-secrets-before-index
+
+# Python
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Node.js
+node_modules/
+docs-site/node_modules/
+.npm-cache/
+*.tsbuildinfo
+coverage/
+
+# Astro/Starlight build outputs
+docs-site/.astro/
+docs-site/dist/
+docs-site/.vercel/
+docs-site/.netlify/
+
+# IDE & Editors
+.vscode/
+.idea/
+.vscode-server/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Generated docs-site project views
+docs-site/src/content/docs/projects/*
+!docs-site/src/content/docs/projects/example-project/
+!docs-site/src/content/docs/projects/example-project/**
+
+# Generated llms.txt artifacts
+docs-site/public/llms*.txt
+
+# Generated artifacts, local indexes, and mutable storage
+storage/*
+!storage/.gitkeep
+!storage/index/
+storage/index/*
+!storage/index/.gitkeep
+!storage/generated/
+storage/generated/*
+!storage/generated/.gitkeep
+
+# Local launchd agents
+templates/launchd/*.plist
+!templates/launchd/*.example.plist
+
+# Logs
+*.log
+logs/
+*.out
+*.err
+*.pid

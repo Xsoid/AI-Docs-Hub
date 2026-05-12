@@ -1,0 +1,45 @@
+project: example-project
+namespace: example-project
+title: "Example Project"
+root: "/ABSOLUTE/PATH/TO/EXTERNAL/PROJECT"
+
+sources:
+  - path: "docs"
+    type: markdown
+  - path: "README.md"
+    type: markdown
+  - path: "AGENTS.md"
+    type: markdown
+  - path: "src"
+    type: code
+
+include:
+  - "docs/**/*.md"
+  - "README.md"
+  - "AGENTS.md"
+  - "src/**/README.md"
+  - "migrations/**/*.sql"
+
+exclude:
+  - ".git/**"
+  - "vendor/**"
+  - "node_modules/**"
+  - "storage/**"
+  - "cache/**"
+  - "tmp/**"
+  - "logs/**"
+  - ".env"
+  - ".env.*"
+  - "**/.env"
+  - "**/.env.*"
+  - "**/*secret*"
+  - "**/*token*"
+  - "**/*password*"
+  - "**/*.key"
+  - "**/*.pem"
+
+agent_rules:
+  - "Искать только в namespace текущего проекта."
+  - "Если документация противоречит коду, явно сообщать о конфликте."
+  - "Не использовать контекст других проектов без прямого запроса."
+

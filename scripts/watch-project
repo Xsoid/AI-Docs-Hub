@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from rag.config import HUB_ROOT, ProjectConfig, get_project_config, load_project_configs, validate_project_config  # noqa: E402
+from rag.lite import build_index, collect_project_files  # noqa: E402
+
+
+@dataclass
+class WatchState:
+    snapshot: dict[str, tuple[int, int]]
+    last_seen_change_at: float | None = None
+    last_attempted_snapshot_key: tuple[tuple[str, int, int], ...] | None = None
+    pending: bool = False
+    skipped_notice_printed: bool = False
+
+
+def log(message: str) -> None:
+    print(f"[watch] {message}", flush=True)
+
+
+def snapshot_project(config: ProjectConfig) -> dict[str, tuple[int, int]]:
+    root = config.root.resolve()
+    snapshot: dict[str, tuple[int, int]] = {}
+    for path in collect_project_files(config):
+        rel = path.relative_to(root).as_posix()
+        stat = path.stat()
+        snapshot[rel] = (stat.st_mtime_ns, stat.st_size)
+    return snapshot
+
+
+def snapshot_key(snapshot: dict[str, tuple[int, int]]) -> tuple[tuple[str, int, int], ...]:
+    return tuple(sorted((path, mtime_ns, size) for path, (mtime_ns, size) in snapshot.items()))
+
+
+def config_is_watchable(config: ProjectConfig) -> tuple[bool, str]:
+    issues = validate_project_config(config)
+    errors = [issue["message"] for issue in issues if issue["level"] == "error"]
+    if errors:
+        return False, "; ".join(errors)
+    if not config.root.exists():
+        return False, f"root does not exist: {config.root}"
+    return True, ""
+
+
+def changed_paths(before: dict[str, tuple[int, int]], after: dict[str, tuple[int, int]]) -> list[str]:
+    paths = sorted(set(before) | set(after))
+    return [path for path in paths if before.get(path) != after.get(path)]
+
+
+def run_llms() -> bool:
+    result = subprocess.run(
+        [sys.executable, str(HUB_ROOT / "scripts" / "generate-llms")],
+        cwd=str(HUB_ROOT),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if result.returncode != 0:
+        log(f"llms generation failed with exit code {result.returncode}")
+        if result.stdout.strip():
+            print(result.stdout, flush=True)
+        return False
+    return True
+
+
+def reindex(config: ProjectConfig, generate_llms: bool) -> bool:
+    try:
+        index = build_index(config, reindex=True)
+        log(
+            f"indexed {config.project}: "
+            f"{index['documents_count']} documents, {index['chunks_count']} chunks"
+        )
+        if generate_llms:
+            ok = run_llms()
+            if ok:
+                log("updated llms.txt, llms-full.txt, and llms-small.txt")
+            return ok
+        return True
+    except Exception as exc:  # noqa: BLE001
+        log(f"indexing blocked for {config.project}: {exc}")
+        return False
+
+
+def load_watch_configs(args: argparse.Namespace) -> dict[str, ProjectConfig]:
+    if args.all:
+        configs = load_project_configs()
+    else:
+        configs = {args.project: get_project_config(args.project)}
+    return dict(sorted(configs.items()))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Watch configured project docs and reindex on changes.")
+    parser.add_argument("--project", help="Project name from configs/projects")
+    parser.add_argument("--all", action="store_true", help="Watch all watchable projects")
+    parser.add_argument("--interval", type=float, default=2.0, help="Polling interval in seconds")
+    parser.add_argument("--debounce", type=float, default=1.5, help="Quiet time before reindexing")
+    parser.add_argument("--no-llms", action="store_true", help="Do not regenerate llms*.txt after indexing")
+    parser.add_argument(
+        "--no-initial-index",
+        action="store_true",
+        help="Do not index on startup when the project index is missing",
+    )
+    args = parser.parse_args()
+
+    if not args.all and not args.project:
+        parser.error("Use --project NAME or --all")
+    if args.interval < 0.5:
+        parser.error("--interval must be >= 0.5")
+    if args.debounce < 0:
+        parser.error("--debounce must be >= 0")
+
+    generate_llms = not args.no_llms
+    states: dict[str, WatchState] = {}
+
+    log(
+        "starting watcher "
+        f"(interval={args.interval}s, debounce={args.debounce}s, llms={'on' if generate_llms else 'off'})"
+    )
+
+    try:
+        while True:
+            configs = load_watch_configs(args)
+            now = time.monotonic()
+
+            for name, config in configs.items():
+                watchable, reason = config_is_watchable(config)
+                if not watchable:
+                    state = states.setdefault(name, WatchState(snapshot={}))
+                    if not state.skipped_notice_printed:
+                        log(f"skipping {name}: {reason}")
+                        state.skipped_notice_printed = True
+                    continue
+
+                try:
+                    current = snapshot_project(config)
+                except Exception as exc:  # noqa: BLE001
+                    log(f"failed to scan {name}: {exc}")
+                    continue
+
+                state = states.get(name)
+                if state is None:
+                    state = WatchState(snapshot=current)
+                    states[name] = state
+                    log(f"watching {name}: {len(current)} files")
+                    if not args.no_initial_index and not config.index_path.exists():
+                        log(f"index missing for {name}; scheduling initial index")
+                        state.pending = True
+                        state.last_seen_change_at = now
+                    continue
+
+                changes = changed_paths(state.snapshot, current)
+                if changes:
+                    state.snapshot = current
+                    state.pending = True
+                    state.last_seen_change_at = now
+                    preview = ", ".join(changes[:5])
+                    if len(changes) > 5:
+                        preview += f", +{len(changes) - 5} more"
+                    log(f"detected changes in {name}: {preview}")
+
+                if state.pending and state.last_seen_change_at is not None:
+                    if now - state.last_seen_change_at < args.debounce:
+                        continue
+                    key = snapshot_key(state.snapshot)
+                    if key == state.last_attempted_snapshot_key:
+                        state.pending = False
+                        continue
+                    state.last_attempted_snapshot_key = key
+                    ok = reindex(config, generate_llms=generate_llms)
+                    if ok:
+                        state.pending = False
+
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        log("stopped")
+        return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

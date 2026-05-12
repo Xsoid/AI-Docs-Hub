@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+DOCS_PORT="${DOCS_PORT:-4321}"
+NODE_IMAGE="${NODE_IMAGE:-node:22-alpine}"
+
+if command -v npm >/dev/null 2>&1; then
+  cd "$ROOT_DIR/docs-site"
+  exec npm "$@"
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "npm is not installed and Docker is unavailable. Install Node.js 22+ or Docker." >&2
+  exit 127
+fi
+
+TTY_FLAGS=""
+if [ -t 0 ] && [ -t 1 ]; then
+  TTY_FLAGS="-it"
+fi
+
+PORT_FLAGS=""
+if [ "${1:-}" = "run" ] && { [ "${2:-}" = "dev" ] || [ "${2:-}" = "preview" ]; }; then
+  PORT_FLAGS="-p $DOCS_PORT:4321"
+fi
+
+exec docker run --rm $TTY_FLAGS \
+  $PORT_FLAGS \
+  -e HOME=/workspace \
+  -e ASTRO_TELEMETRY_DISABLED=1 \
+  -e npm_config_cache=/workspace/.npm-cache \
+  -u "$(id -u):$(id -g)" \
+  -v "$ROOT_DIR:/workspace" \
+  -w /workspace/docs-site \
+  "$NODE_IMAGE" npm "$@"

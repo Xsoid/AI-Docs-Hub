@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def send(proc: subprocess.Popen[str], message: dict[str, object]) -> dict[str, object]:
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+    proc.stdin.write(json.dumps(message) + "\n")
+    proc.stdin.flush()
+    line = proc.stdout.readline()
+    if not line:
+        raise RuntimeError("MCP server closed stdout")
+    return json.loads(line)
+
+
+def main() -> int:
+    proc = subprocess.Popen(
+        [sys.executable, str(ROOT / "mcp" / "server.py")],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        init = send(
+            proc,
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "ai-docs-hub-test", "version": "0.1.0"},
+                },
+            },
+        )
+        tools = send(proc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        health = send(
+            proc,
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "healthcheck", "arguments": {}},
+            },
+        )
+        names = [tool["name"] for tool in tools["result"]["tools"]]
+        ok = "search_docs" in names and "read_doc" in names and "healthcheck" in names
+        print(json.dumps({"initialize": init, "tools": names, "healthcheck": health, "ok": ok}, indent=2))
+        return 0 if ok else 1
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
