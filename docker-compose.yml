@@ -1,6 +1,7 @@
 services:
   docs-site:
     image: node:22-alpine
+    restart: unless-stopped
     working_dir: /workspace/docs-site
     volumes:
       - .:/workspace

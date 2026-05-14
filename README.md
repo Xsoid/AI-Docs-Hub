@@ -148,6 +148,14 @@ make validate-configs
 make docs-dev
 ```
 
+Запустить docs-site как Docker Compose сервис с автоподъёмом при старте Docker:
+
+```sh
+docker compose up -d
+```
+
+Compose-сервис настроен с `restart: unless-stopped`, поэтому после первого запуска Docker будет поднимать его автоматически. Подключённые проекты не должны запускать hub: они остаются источниками документации, а hub читает их через `configs/projects`.
+
 Собрать статический сайт:
 
 ```sh
