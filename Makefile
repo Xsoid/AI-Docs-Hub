@@ -1,20 +1,24 @@
-PYTHON ?= python3
+PYTHON ?= python3.11
 PROJECT ?= example-project
 
-.PHONY: setup docs-dev docs-build llms index reindex index-all watch watch-all mcp-dev mcp-test healthcheck rag-health check-secrets lint logs clean-cache validate-configs
+.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all mcp-dev mcp-test healthcheck rag-health check-secrets lint logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
 	./scripts/docs-npm install
+	$(PYTHON) scripts/generate-project-pages
 	$(PYTHON) scripts/validate-configs
 
-docs-dev:
+project-pages:
+	$(PYTHON) scripts/generate-project-pages
+
+docs-dev: project-pages
 	./scripts/docs-npm run dev -- --host 0.0.0.0
 
-docs-build:
+docs-build: project-pages
 	./scripts/docs-npm run build
 
-llms:
+llms: project-pages
 	$(PYTHON) scripts/generate-llms
 
 index:

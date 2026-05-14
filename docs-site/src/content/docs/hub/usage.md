@@ -9,6 +9,8 @@ Run setup:
 make setup
 ```
 
+Setup expects local Python 3.11 and Node.js 22 LTS with npm. See [Autonomous Setup](/hub/autonomous-setup/).
+
 Start the docs site:
 
 ```sh
@@ -19,6 +21,12 @@ Generate LLM context files:
 
 ```sh
 make llms
+```
+
+Regenerate docs-site project entries:
+
+```sh
+make project-pages
 ```
 
 Index one project:
@@ -45,5 +53,3 @@ Run checks:
 make healthcheck
 make mcp-test
 ```
-
-If local Node is missing, the docs commands use the official `node:22-alpine` Docker image.

@@ -81,9 +81,12 @@ def validate_project_config(config: ProjectConfig) -> list[dict[str, str]]:
     return issues
 
 
+def is_unbound_example_config(config: ProjectConfig) -> bool:
+    return config.project == "example-project" and "/ABSOLUTE/PATH" in str(config.root)
+
+
 def validate_all_configs() -> dict[str, list[dict[str, str]]]:
     return {
         name: validate_project_config(config)
         for name, config in load_project_configs().items()
     }
-

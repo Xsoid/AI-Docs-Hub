@@ -28,7 +28,6 @@ The default RAG backend is local and lightweight. It reads project configs, filt
 
 `mcp/server.py` is a stdio MCP server. It exposes project-scoped tools for listing projects, searching docs, reading sources, and checking health.
 
-## Optional RAGFlow
+## Runtime
 
-RAGFlow is intentionally optional. On macOS arm64, verify official image support before using `docker-compose.ragflow.yml.example`.
-
+The default runtime is fully local: Python 3.11, Node.js 22 LTS with npm, and local filesystem storage. Docker, external vector databases, and RAGFlow are not part of the working architecture.

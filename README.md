@@ -40,7 +40,7 @@ ai-docs-hub/
   storage/                # локальные индексы и generated artifacts
 ```
 
-RAGFlow оставлен как optional fallback в `docker-compose.ragflow.yml.example`. На macOS arm64 сначала проверьте официальную поддержку образов; рабочий backend по умолчанию - lite RAG.
+Рабочая архитектура не требует Docker, RAGFlow, облачных vector DB или внешних AI API. По умолчанию хаб работает через локальный Python, локальный Node/npm для docs-site и файловое хранилище в `storage/`.
 
 ## 4. Где хранится документация проектов
 
@@ -61,7 +61,28 @@ project-a/
 
 Внутри хаба хранятся только конфиги, индексы, MCP, docs-site, шаблоны, generated-представления и надпроектные правила.
 
-## 5. Быстрый старт
+## 5. Что должно быть установлено для автономной работы
+
+Для автономного запуска без контейнеров на машине должны быть доступны:
+
+- Python 3.11 как `python3.11`;
+- Node.js 22 LTS как `node`;
+- npm 10+ как `npm`;
+- Git;
+- `make`.
+
+На macOS с Homebrew:
+
+```sh
+brew install python@3.11 node@22
+brew link --force --overwrite node@22
+```
+
+Важно: системный `python3` на macOS может быть старым. Команды хаба намеренно используют `python3.11`.
+
+Docker не является runtime-зависимостью хаба. Он не нужен для Lite RAG, MCP, `llms*.txt`, индексирования, lint, watch mode или docs-site, если локально установлен Node.js 22.
+
+## 6. Быстрый старт
 
 ```sh
 make setup
@@ -70,22 +91,19 @@ make llms
 make mcp-test
 ```
 
-На этой машине Node/npm сейчас не найдены. Команды `docs-*` и `setup` используют локальный `npm`, если он есть, иначе официальный Docker-образ `node:22-alpine`.
-
-Интернет потребуется только для установки npm-зависимостей или pull Docker-образа:
+Интернет потребуется только для установки npm-зависимостей:
 
 ```sh
 make setup
 ```
 
-Эквивалентно вручную:
+Эквивалентно для docs-site вручную:
 
 ```sh
-docker pull node:22-alpine
 ./scripts/docs-npm install
 ```
 
-## 6. Как добавить проект
+## 7. Как добавить проект
 
 Создайте файл:
 
@@ -140,7 +158,15 @@ agent_rules:
 make validate-configs
 ```
 
-## 7. Как собрать docs-site
+## 8. Как собрать docs-site
+
+Docs-site - это веб-интерфейс для просмотра документации хаба и derived-страниц подключенных проектов. Он не нужен для MCP-доступа Codex, но удобен для ручной навигации по документации.
+
+Обновить derived-страницы подключенных проектов:
+
+```sh
+make project-pages
+```
 
 Запустить dev server:
 
@@ -148,13 +174,11 @@ make validate-configs
 make docs-dev
 ```
 
-Запустить docs-site как Docker Compose сервис с автоподъёмом при старте Docker:
+Открыть в браузере:
 
-```sh
-docker compose up -d
+```text
+http://localhost:4321/
 ```
-
-Compose-сервис настроен с `restart: unless-stopped`, поэтому после первого запуска Docker будет поднимать его автоматически. Подключённые проекты не должны запускать hub: они остаются источниками документации, а hub читает их через `configs/projects`.
 
 Собрать статический сайт:
 
@@ -162,9 +186,11 @@ Compose-сервис настроен с `restart: unless-stopped`, поэтом
 make docs-build
 ```
 
+Docs-site запускается локальным Node/npm. Перед `docs-dev`, `docs-build` и `llms` хаб обновляет derived-страницы проектов из `configs/projects/*.yaml`. Подключённые проекты не должны запускать hub: они остаются источниками документации, а hub читает их через `configs/projects`.
+
 Docs-site построен на Astro Starlight. Starlight дает нормальные landmarks и доступную навигацию; если будущая тема ухудшит семантический HTML, overrides нужно добавлять в `docs-site`.
 
-## 8. Как сгенерировать llms.txt
+## 9. Как сгенерировать llms.txt
 
 ```sh
 make llms
@@ -183,7 +209,7 @@ storage/generated/llms-small.txt
 
 Это производные артефакты. Не редактируйте их вручную.
 
-## 9. Как проиндексировать проект
+## 10. Как проиндексировать проект
 
 ```sh
 make index PROJECT=my-project
@@ -238,7 +264,7 @@ launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/local.ai-docs-hub.watch.my
 rm ~/Library/LaunchAgents/local.ai-docs-hub.watch.my-project.plist
 ```
 
-## 10. Как подключить MCP к Codex
+## 11. Как подключить MCP к Codex
 
 Глобальный Codex config автоматически не меняется. Пример лежит в:
 
@@ -250,7 +276,7 @@ codex-config.example.toml
 
 ```toml
 [mcp_servers.local_ai_docs_hub]
-command = "python3"
+command = "python3.11"
 args = ["/ABSOLUTE/PATH/TO/ai-docs-hub/mcp/server.py"]
 ```
 
@@ -263,11 +289,11 @@ templates/codex/project-config.toml
 
 ```toml
 [mcp_servers.project_docs]
-command = "python3"
+command = "python3.11"
 args = ["/ABSOLUTE/PATH/TO/ai-docs-hub/mcp/server.py", "--project", "example-project"]
 ```
 
-## 11. Как проверить, что все работает
+## 12. Как проверить, что все работает
 
 ```sh
 make healthcheck
@@ -290,7 +316,7 @@ MCP tools:
 
 `index_project` через MCP по умолчанию не запускает индексацию. Он сначала возвращает описание операции и требует `confirm=true`.
 
-## 12. Как не утечь секретами
+## 13. Как не утечь секретами
 
 По умолчанию исключаются:
 
@@ -307,7 +333,7 @@ MCP tools:
 make check-secrets PROJECT=my-project
 ```
 
-## 13. Как удалить индекс проекта
+## 14. Как удалить индекс проекта
 
 Индекс проекта - это локальный JSON-файл:
 
@@ -327,7 +353,7 @@ rm storage/index/my-project.json
 make clean-cache
 ```
 
-## 14. Operation Logs и Lint
+## 15. Operation Logs и Lint
 
 ### Логирование операций индексирования
 
@@ -408,13 +434,13 @@ Status: has_issues
 Детальный lint с дополнительной информацией:
 
 ```sh
-python3 scripts/lint-project --project my-project --detailed
+python3.11 scripts/lint-project --project my-project --detailed
 ```
 
 JSON-вывод (для парсинга):
 
 ```sh
-python3 scripts/lint-project --project my-project --json
+python3.11 scripts/lint-project --project my-project --json
 ```
 
 Через MCP:
@@ -423,12 +449,13 @@ python3 scripts/lint-project --project my-project --json
 mcp.lint_project({"project": "my-project", "detailed": false})
 ```
 
-## 15. Как перенести хаб на другую машину
+## 16. Как перенести хаб на другую машину
 
 1. Скопируйте репозиторий хаба.
-2. Не переносите `storage/index`, если хотите чистую переиндексацию.
-3. Проверьте абсолютные `root` в `configs/projects/*.yaml`.
-4. Запустите:
+2. Установите локальные зависимости: Python 3.11, Node.js 22 LTS, npm, Git и `make`.
+3. Не переносите `storage/index`, если хотите чистую переиндексацию.
+4. Проверьте абсолютные `root` в `configs/projects/*.yaml`.
+5. Запустите:
 
 ```sh
 make setup
@@ -438,7 +465,7 @@ make index-all
 make mcp-test
 ```
 
-## 16. Безопасные ограничения MVP
+## 17. Безопасные ограничения MVP
 
 - Хаб читает внешние проекты, но не редактирует их.
 - Источник истины - project docs, а не RAG.

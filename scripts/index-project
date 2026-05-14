@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.11
 from __future__ import annotations
 
 import argparse
@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from rag.config import get_project_config, load_project_configs  # noqa: E402
+from rag.config import get_project_config, is_unbound_example_config, load_project_configs  # noqa: E402
 from rag.lite import build_index  # noqa: E402
 
 
@@ -44,6 +44,16 @@ def main() -> int:
     exit_code = 0
     for name in names:
         try:
+            config = get_project_config(str(name))
+            if args.all and is_unbound_example_config(config):
+                results.append(
+                    {
+                        "project": name,
+                        "skipped": True,
+                        "reason": "unbound sample config",
+                    }
+                )
+                continue
             results.append(index_one(str(name), args.reindex))
         except Exception as exc:  # noqa: BLE001
             exit_code = 1
@@ -55,4 +65,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

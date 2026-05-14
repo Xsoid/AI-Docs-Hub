@@ -16,6 +16,7 @@ export default defineConfig({
           items: [
             { label: 'Overview', slug: 'hub/overview' },
             { label: 'Architecture', slug: 'hub/architecture' },
+            { label: 'Autonomous Setup', slug: 'hub/autonomous-setup' },
             { label: 'Usage', slug: 'hub/usage' },
             { label: 'Agent Rules', slug: 'hub/agent-rules' }
           ]

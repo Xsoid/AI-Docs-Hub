@@ -8,7 +8,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/python3</string>
+    <string>/opt/homebrew/bin/python3.11</string>
     <string>/ABSOLUTE/PATH/TO/ai-docs-hub/scripts/watch-project</string>
     <string>--project</string>
     <string>example-project</string>
