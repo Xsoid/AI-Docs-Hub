@@ -112,7 +112,7 @@ class McpServer:
         if not config.root.exists():
             raise ValueError(
                 f"Project root does not exist: {config.root}. "
-                "Set configs/projects/*.yaml root to an absolute external project path."
+                "Set configs/projects/*.yaml root to a resolvable external project path."
             )
         index = build_index(config, reindex=bool(args.get("reindex", False)))
         return {

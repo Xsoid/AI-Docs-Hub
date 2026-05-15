@@ -1,7 +1,7 @@
 project: example-project
 namespace: example-project
 title: "Example Project"
-root: "/ABSOLUTE/PATH/TO/EXTERNAL/PROJECT"
+root: "<EXTERNAL_PROJECT_ROOT>"
 
 sources:
   - path: "docs"
@@ -42,4 +42,3 @@ agent_rules:
   - "Искать только в namespace текущего проекта."
   - "Если документация противоречит коду, явно сообщать о конфликте."
   - "Не использовать контекст других проектов без прямого запроса."
-

@@ -1,7 +1,7 @@
 PYTHON ?= python3.11
 PROJECT ?= example-project
 
-.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all mcp-dev mcp-test healthcheck rag-health check-secrets lint logs clean-cache validate-configs
+.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test healthcheck rag-health check-secrets lint logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -35,6 +35,48 @@ watch:
 
 watch-all:
 	$(PYTHON) scripts/watch-project --all
+
+hub-dev:
+	$(PYTHON) scripts/hub-dev
+
+hub-status:
+	$(PYTHON) scripts/hub-status
+
+hub-install:
+	$(PYTHON) scripts/hub-launchd install
+
+hub-start:
+	$(PYTHON) scripts/hub-launchd start
+
+hub-stop:
+	$(PYTHON) scripts/hub-launchd stop
+
+hub-restart:
+	$(PYTHON) scripts/hub-launchd restart
+
+hub-uninstall:
+	$(PYTHON) scripts/hub-launchd uninstall
+
+hub-launchd-status:
+	$(PYTHON) scripts/hub-launchd status
+
+hub-logs:
+	$(PYTHON) scripts/hub-launchd logs
+
+hub-menu-build:
+	$(PYTHON) scripts/hub-menubar build
+
+hub-menu-start:
+	$(PYTHON) scripts/hub-menubar start
+
+hub-menu-stop:
+	$(PYTHON) scripts/hub-menubar stop
+
+hub-menu-restart:
+	$(PYTHON) scripts/hub-menubar restart
+
+hub-menu-status:
+	$(PYTHON) scripts/hub-menubar status
 
 mcp-dev:
 	$(PYTHON) mcp/server.py

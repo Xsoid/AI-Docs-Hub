@@ -42,7 +42,7 @@ make mcp-test
 - Python runs Lite RAG, MCP, indexing, lint, healthcheck, `llms*.txt`, and watch mode.
 - Node/npm run the Astro Starlight docs site.
 - `storage/` keeps local indexes, generated files, and operation logs.
-- `configs/projects/*.yaml` connects external project documentation by absolute path.
+- `configs/projects/*.yaml` connects external project documentation through resolvable portable roots, such as `${AI_DOCS_PROJECTS_ROOT}/project-name`.
 
 ## Not Required
 

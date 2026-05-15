@@ -1,3 +1,3 @@
 [mcp_servers.project_docs]
 command = "python3.11"
-args = ["/ABSOLUTE/PATH/TO/ai-docs-hub/mcp/server.py", "--project", "example-project"]
+args = ["<AI_DOCS_HUB_ROOT>/mcp/server.py", "--project", "example-project"]

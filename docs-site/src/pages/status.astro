@@ -1,0 +1,706 @@
+---
+const title = 'Статус AI Docs Hub';
+---
+
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f7f4;
+        --surface: #ffffff;
+        --surface-2: #f0f3f4;
+        --text: #1f2528;
+        --muted: #667076;
+        --line: #d9dddc;
+        --green: #16845a;
+        --green-bg: #e8f5ee;
+        --red: #b9332a;
+        --red-bg: #faeae8;
+        --amber: #9a6500;
+        --amber-bg: #fff3d6;
+        --blue: #245c9d;
+        --blue-bg: #e8f0fa;
+        --shadow: 0 18px 50px rgba(31, 37, 40, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(247, 247, 244, 0) 240px),
+          var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: 0;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .shell {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 24px 0 40px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 56px;
+        margin-bottom: 20px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: 0 10px 30px rgba(31, 37, 40, 0.06);
+        color: var(--blue);
+        font-weight: 800;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.15;
+      }
+
+      .brand p {
+        margin: 3px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .button,
+      .link-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 40px;
+        padding: 0 13px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 14px;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .button:hover,
+      .link-button:hover {
+        border-color: #b8c0c0;
+        background: #fbfbfa;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+        gap: 18px;
+        align-items: stretch;
+        margin-bottom: 18px;
+      }
+
+      .summary {
+        position: relative;
+        overflow: hidden;
+        min-height: 250px;
+        padding: 28px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .summary::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 8px;
+        background: var(--blue);
+      }
+
+      .summary[data-state="up"]::before {
+        background: var(--green);
+      }
+
+      .summary[data-state="down"]::before {
+        background: var(--red);
+      }
+
+      .summary[data-state="degraded"]::before {
+        background: var(--amber);
+      }
+
+      .state-line {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .state-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--blue);
+        box-shadow: 0 0 0 5px var(--blue-bg);
+      }
+
+      .summary[data-state="up"] .state-dot {
+        background: var(--green);
+        box-shadow: 0 0 0 5px var(--green-bg);
+      }
+
+      .summary[data-state="down"] .state-dot {
+        background: var(--red);
+        box-shadow: 0 0 0 5px var(--red-bg);
+      }
+
+      .summary[data-state="degraded"] .state-dot {
+        background: var(--amber);
+        box-shadow: 0 0 0 5px var(--amber-bg);
+      }
+
+      .summary h2 {
+        margin: 0;
+        font-size: clamp(32px, 5vw, 56px);
+        line-height: 1.02;
+        letter-spacing: 0;
+      }
+
+      .summary-text {
+        max-width: 700px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.55;
+      }
+
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .meta {
+        min-height: 72px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-2);
+      }
+
+      .meta span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .meta strong {
+        display: block;
+        margin-top: 5px;
+        font-size: 16px;
+        overflow-wrap: anywhere;
+      }
+
+      .actions {
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .actions h2,
+      .section h2 {
+        margin: 0 0 14px;
+        font-size: 18px;
+      }
+
+      .action-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .action-list li {
+        min-height: 44px;
+        padding: 12px 12px 12px 14px;
+        border-left: 4px solid var(--blue);
+        border-radius: 8px;
+        background: var(--blue-bg);
+        color: #203044;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .action-list li[data-kind="ok"] {
+        border-color: var(--green);
+        background: var(--green-bg);
+      }
+
+      .command-box {
+        margin-top: 16px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .command {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-height: 42px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfbfa;
+      }
+
+      .command code {
+        color: #273036;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .section {
+        margin-top: 18px;
+      }
+
+      .component {
+        min-height: 155px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .component-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .component h3 {
+        margin: 0;
+        font-size: 17px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 80px;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: var(--blue-bg);
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .pill[data-status="ok"] {
+        background: var(--green-bg);
+        color: var(--green);
+      }
+
+      .pill[data-status="down"],
+      .pill[data-status="error"] {
+        background: var(--red-bg);
+        color: var(--red);
+      }
+
+      .pill[data-status="warning"] {
+        background: var(--amber-bg);
+        color: var(--amber);
+      }
+
+      .component p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
+
+      .component .plain {
+        margin-top: 12px;
+        color: var(--text);
+      }
+
+      .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-top: 22px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .error {
+        display: none;
+        margin-top: 14px;
+        padding: 12px 14px;
+        border: 1px solid #efc7c3;
+        border-radius: 8px;
+        background: var(--red-bg);
+        color: var(--red);
+      }
+
+      body[data-error="true"] .error {
+        display: block;
+      }
+
+      @media (max-width: 920px) {
+        .hero,
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          width: min(100% - 20px, 1180px);
+          padding-top: 14px;
+        }
+
+        .topbar,
+        .footer {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .nav {
+          justify-content: stretch;
+        }
+
+        .button,
+        .link-button {
+          width: 100%;
+        }
+
+        .summary {
+          padding: 22px 18px 20px 24px;
+        }
+
+        .summary-text {
+          font-size: 16px;
+        }
+
+        .meta-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="mark" aria-hidden="true">AI</div>
+          <div>
+            <h1>AI Docs Hub</h1>
+            <p>Локальный пульт состояния</p>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Навигация">
+          <button class="button" id="refresh" type="button">Обновить</button>
+          <a class="link-button" href="/">Документация</a>
+        </nav>
+      </header>
+
+      <section class="hero" aria-label="Главное состояние">
+        <div class="summary" id="summary" data-state="loading">
+          <div class="state-line">
+            <span class="state-dot" aria-hidden="true"></span>
+            <span id="stateLabel">Проверяю</span>
+          </div>
+          <h2 id="headline">Смотрю, что происходит</h2>
+          <p class="summary-text" id="summaryText">Страница получает состояние локального хаба.</p>
+          <div class="meta-grid">
+            <div class="meta">
+              <span>Последняя проверка</span>
+              <strong id="checkedAt">-</strong>
+            </div>
+            <div class="meta">
+              <span>Адрес сайта</span>
+              <strong>localhost:4321</strong>
+            </div>
+          </div>
+          <div class="error" id="errorBox"></div>
+        </div>
+
+        <aside class="actions" aria-label="Что сделать">
+          <h2>Что сделать</h2>
+          <ul class="action-list" id="actions">
+            <li>Проверяю состояние.</li>
+          </ul>
+          <div class="command-box" aria-label="Основные команды">
+            <div class="command"><code>make hub-status</code></div>
+            <div class="command"><code>make hub-logs</code></div>
+            <div class="command"><code>make hub-restart</code></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" aria-label="Компоненты">
+        <h2>Что проверено</h2>
+        <div class="grid" id="components"></div>
+      </section>
+
+      <footer class="footer">
+        <span>Страница обновляется автоматически каждые 5 секунд.</span>
+        <span id="apiPath">Источник: /api/hub-status.json</span>
+      </footer>
+    </main>
+
+    <script is:inline>
+      const componentCopy = {
+        runtime: {
+          title: 'Пульт управления',
+          description: 'Следит, запущен ли хаб вручную или через автозапуск macOS.'
+        },
+        'docs-site': {
+          title: 'Веб-страница',
+          description: 'Отвечает за этот сайт и адрес localhost:4321.'
+        },
+        repository: {
+          title: 'Настройки',
+          description: 'Проверяет файлы хаба, конфиги проектов и локальные зависимости.'
+        },
+        rag: {
+          title: 'Поиск по документам',
+          description: 'Проверяет локальный индекс для поиска по документации.'
+        },
+        mcp: {
+          title: 'Связь с Codex',
+          description: 'Проверяет локальный MCP-мост и список доступных tools.'
+        },
+        watcher: {
+          title: 'Автообновление',
+          description: 'Следит за изменениями в подключенных проектах.'
+        }
+      };
+
+      const statusText = {
+        ok: 'Работает',
+        down: 'Лежит',
+        error: 'Ошибка',
+        warning: 'Внимание'
+      };
+
+      const summaryText = {
+        up: {
+          label: 'Все в порядке',
+          headline: 'Хаб работает',
+          text: 'Документация открывается, поиск и связь с Codex отвечают, автообновление активно.'
+        },
+        down: {
+          label: 'Есть авария',
+          headline: 'Хаб лежит',
+          text: 'Один из обязательных узлов не отвечает. Ниже указано, что именно сломалось и какую команду выполнить.'
+        },
+        degraded: {
+          label: 'Работает не полностью',
+          headline: 'Хаб требует внимания',
+          text: 'Основные части живы, но один из дополнительных признаков здоровья отсутствует или устарел.'
+        },
+        loading: {
+          label: 'Проверяю',
+          headline: 'Смотрю, что происходит',
+          text: 'Страница получает состояние локального хаба.'
+        }
+      };
+
+      function formatTime(value) {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return new Intl.DateTimeFormat('ru-RU', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          day: '2-digit',
+          month: '2-digit'
+        }).format(date);
+      }
+
+      function translateStep(step) {
+        const map = [
+          ['start foreground runtime: make hub-dev', 'Запустить вручную: make hub-dev'],
+          [
+            'install persistent runtime: make hub-install && make hub-start',
+            'Включить автозапуск: make hub-install && make hub-start'
+          ],
+          ['inspect docs-site through runtime logs: make hub-logs', 'Посмотреть логи: make hub-logs'],
+          ['watcher heartbeat is produced by make hub-dev', 'Автообновление появляется после запуска hub-dev'],
+          ['inspect MCP startup: make mcp-test', 'Проверить связь с Codex: make mcp-test'],
+          ['inspect repository health: make healthcheck', 'Проверить настройки: make healthcheck']
+        ];
+        const found = map.find(([source]) => source === step);
+        return found ? found[1] : step;
+      }
+
+      function setSummary(status) {
+        const safeStatus = summaryText[status] ? status : 'loading';
+        const copy = summaryText[safeStatus];
+        document.getElementById('summary').dataset.state = safeStatus;
+        document.getElementById('stateLabel').textContent = copy.label;
+        document.getElementById('headline').textContent = copy.headline;
+        document.getElementById('summaryText').textContent = copy.text;
+      }
+
+      function componentCard(name, component) {
+        const copy = componentCopy[name] || { title: name, description: 'Локальная проверка хаба.' };
+        const status = component.status || 'warning';
+        const article = document.createElement('article');
+        article.className = 'component';
+        article.innerHTML = `
+          <div class="component-head">
+            <h3></h3>
+            <span class="pill" data-status="${status}"></span>
+          </div>
+          <p></p>
+          <p class="plain"></p>
+        `;
+        article.querySelector('h3').textContent = copy.title;
+        article.querySelector('.pill').textContent = statusText[status] || status;
+        const paragraphs = article.querySelectorAll('p');
+        paragraphs[0].textContent = copy.description;
+        paragraphs[1].textContent = component.message || 'Нет сообщения.';
+        return article;
+      }
+
+      function setActions(payload) {
+        const list = document.getElementById('actions');
+        list.textContent = '';
+        const status = payload.status;
+        let actions = [];
+        if (status === 'up') {
+          actions = ['Все работает. Можно открывать документацию и работать с Codex.'];
+        } else if (status === 'degraded') {
+          actions = ['Хаб работает не полностью. Посмотрите строку с пометкой “Внимание” или “Лежит”.'];
+        } else {
+          actions = ['Запустите persistent runtime: make hub-install && make hub-start.'];
+        }
+        const next = Array.isArray(payload.next) ? payload.next.map(translateStep) : [];
+        const full = [...actions, ...next];
+        for (const item of full) {
+          const li = document.createElement('li');
+          li.textContent = item;
+          if (status === 'up') li.dataset.kind = 'ok';
+          list.append(li);
+        }
+      }
+
+      function collectNextSteps(payload) {
+        const components = payload.components || {};
+        const steps = [];
+        if (components.runtime?.status !== 'ok') {
+          steps.push('start foreground runtime: make hub-dev');
+          steps.push('install persistent runtime: make hub-install && make hub-start');
+        }
+        if (components['docs-site']?.status !== 'ok') {
+          steps.push('inspect docs-site through runtime logs: make hub-logs');
+        }
+        if (components.mcp?.status !== 'ok') {
+          steps.push('inspect MCP startup: make mcp-test');
+        }
+        if (components.repository?.status === 'error') {
+          steps.push('inspect repository health: make healthcheck');
+        }
+        if (components.watcher?.status !== 'ok') {
+          steps.push('watcher heartbeat is produced by make hub-dev');
+        }
+        payload.next = [...new Set(steps)];
+      }
+
+      function render(payload) {
+        document.body.dataset.error = 'false';
+        const status = payload.status || 'down';
+        collectNextSteps(payload);
+        setSummary(status);
+        setActions(payload);
+        document.getElementById('checkedAt').textContent = formatTime(payload.checked_at);
+
+        const grid = document.getElementById('components');
+        grid.textContent = '';
+        const components = payload.components || {};
+        for (const name of ['runtime', 'docs-site', 'repository', 'rag', 'mcp', 'watcher']) {
+          grid.append(componentCard(name, components[name] || { status: 'warning', message: 'Нет данных.' }));
+        }
+      }
+
+      async function refresh() {
+        try {
+          const response = await fetch('/api/hub-status.json', { cache: 'no-store' });
+          const payload = await response.json();
+          if (payload.error) throw new Error(payload.error);
+          render(payload);
+        } catch (error) {
+          document.body.dataset.error = 'true';
+          setSummary('down');
+          document.getElementById('errorBox').textContent =
+            error instanceof Error ? error.message : 'Не удалось получить статус.';
+        }
+      }
+
+      document.getElementById('refresh').addEventListener('click', refresh);
+      refresh();
+      window.setInterval(refresh, 5000);
+    </script>
+  </body>
+</html>
+

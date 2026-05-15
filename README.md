@@ -32,6 +32,7 @@
 ```text
 ai-docs-hub/
   configs/projects/       # подключение внешних проектов
+  docs/                   # source-документация самого AI Docs Hub
   docs-site/              # Astro Starlight docs-site
   rag/                    # lite RAG backend
   mcp/                    # stdio MCP server
@@ -59,7 +60,17 @@ project-a/
     glossary.md
 ```
 
-Внутри хаба хранятся только конфиги, индексы, MCP, docs-site, шаблоны, generated-представления и надпроектные правила.
+Внутри хаба хранятся только конфиги, индексы, MCP, docs-site, шаблоны, generated-представления, надпроектные правила и документация самого хаба в `/docs`.
+
+## 4.1. Где документируются доработки хаба
+
+Документация самого AI Docs Hub ведется в:
+
+```text
+docs/
+```
+
+Каждая значимая доработка хаба должна обновлять `/docs` в том же изменении. Начальная структура и правила описаны в [docs/README.md](docs/README.md).
 
 ## 5. Что должно быть установлено для автономной работы
 
@@ -103,6 +114,72 @@ make setup
 ./scripts/docs-npm install
 ```
 
+Проверить live runtime-состояние хаба:
+
+```sh
+make hub-status
+```
+
+Запустить docs-site и watcher вместе в явном foreground-режиме:
+
+```sh
+make hub-dev
+```
+
+`hub-dev` не прячется в фоне: он пишет логи в текущий терминал и останавливает дочерние процессы при `Ctrl+C`.
+
+Установить persistent runtime через macOS `launchd`:
+
+```sh
+make hub-install
+make hub-start
+make hub-status
+```
+
+Остановить persistent runtime:
+
+```sh
+make hub-stop
+```
+
+Посмотреть runtime-логи:
+
+```sh
+make hub-logs
+```
+
+Открыть простой GUI dashboard:
+
+```text
+http://localhost:4321/status/
+```
+
+Запустить иконку в верхнем баре macOS:
+
+```sh
+make hub-menu-start
+```
+
+Собрать `.app` без запуска:
+
+```sh
+make hub-menu-build
+```
+
+Собранное приложение лежит в `build/AI Docs Hub.app`, но `build/` не коммитится и остается локальным артефактом.
+
+Закрыть иконку:
+
+```sh
+make hub-menu-stop
+```
+
+Пересобрать и перезапустить иконку после изменения Swift-кода или текста в верхнем баре:
+
+```sh
+make hub-menu-restart
+```
+
 ## 7. Как добавить проект
 
 Создайте файл:
@@ -117,7 +194,7 @@ configs/projects/my-project.yaml
 project: my-project
 namespace: my-project
 title: "My Project"
-root: "/ABSOLUTE/PATH/TO/EXTERNAL/PROJECT"
+root: "${AI_DOCS_PROJECTS_ROOT}/my-project"
 
 sources:
   - path: "docs"
@@ -151,6 +228,12 @@ agent_rules:
   - "Искать только в namespace текущего проекта."
   - "Если документация противоречит коду, явно сообщать о конфликте."
 ```
+
+`root` не должен быть hard-coded абсолютным путем в репозитории. Используйте переносимое выражение:
+
+- `${AI_DOCS_PROJECTS_ROOT}/project-name` для проектов рядом с хабом; по умолчанию `AI_DOCS_PROJECTS_ROOT` разворачивается в родительскую директорию checkout хаба;
+- относительный путь от корня хаба;
+- host-specific абсолютный путь только во внешнем локальном конфиге, который не коммитится.
 
 Проверьте конфиг:
 
@@ -249,7 +332,7 @@ Watcher работает локально в foreground-режиме, читае
 templates/launchd/local.ai-docs-hub.watch.example.plist
 ```
 
-Он не устанавливается автоматически. Скопируйте шаблон, замените `/ABSOLUTE/PATH/TO/ai-docs-hub` и `example-project` на свои значения, затем установите:
+Он не устанавливается автоматически. Скопируйте шаблон, замените `__AI_DOCS_HUB_ROOT__`, `__PYTHON3_11__` и `example-project` на значения конкретной машины, затем установите:
 
 ```sh
 cp templates/launchd/local.ai-docs-hub.watch.example.plist ~/Library/LaunchAgents/local.ai-docs-hub.watch.my-project.plist
@@ -277,7 +360,7 @@ codex-config.example.toml
 ```toml
 [mcp_servers.local_ai_docs_hub]
 command = "python3.11"
-args = ["/ABSOLUTE/PATH/TO/ai-docs-hub/mcp/server.py"]
+args = ["<AI_DOCS_HUB_ROOT>/mcp/server.py"]
 ```
 
 Пример project-scoped config:
@@ -290,7 +373,7 @@ templates/codex/project-config.toml
 ```toml
 [mcp_servers.project_docs]
 command = "python3.11"
-args = ["/ABSOLUTE/PATH/TO/ai-docs-hub/mcp/server.py", "--project", "example-project"]
+args = ["<AI_DOCS_HUB_ROOT>/mcp/server.py", "--project", "example-project"]
 ```
 
 ## 12. Как проверить, что все работает
@@ -454,7 +537,7 @@ mcp.lint_project({"project": "my-project", "detailed": false})
 1. Скопируйте репозиторий хаба.
 2. Установите локальные зависимости: Python 3.11, Node.js 22 LTS, npm, Git и `make`.
 3. Не переносите `storage/index`, если хотите чистую переиндексацию.
-4. Проверьте абсолютные `root` в `configs/projects/*.yaml`.
+4. Проверьте переносимые `root` в `configs/projects/*.yaml` и при необходимости задайте `AI_DOCS_PROJECTS_ROOT`.
 5. Запустите:
 
 ```sh

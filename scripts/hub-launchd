@@ -1,0 +1,268 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+
+import argparse
+import os
+import plistlib
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+LABEL = "local.ai-docs-hub.runtime"
+LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
+PLIST_PATH = LAUNCH_AGENTS_DIR / f"{LABEL}.plist"
+LOG_DIR = ROOT / "storage" / "logs"
+STDOUT_LOG = LOG_DIR / "hub-runtime.out.log"
+STDERR_LOG = LOG_DIR / "hub-runtime.err.log"
+
+
+def require_launchctl() -> str:
+    if sys.platform != "darwin":
+        raise RuntimeError("launchd mode is available only on macOS")
+    launchctl = shutil.which("launchctl")
+    if not launchctl:
+        raise RuntimeError("launchctl was not found")
+    return launchctl
+
+
+def service_target() -> str:
+    return f"gui/{os.getuid()}/{LABEL}"
+
+
+def domain_target() -> str:
+    return f"gui/{os.getuid()}"
+
+
+def run_launchctl(*args: str, check: bool = False) -> subprocess.CompletedProcess[str]:
+    launchctl = require_launchctl()
+    result = subprocess.run(
+        [launchctl, *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if check and result.returncode != 0:
+        details = (result.stderr or result.stdout).strip()
+        raise RuntimeError(f"launchctl {' '.join(args)} failed: {details}")
+    return result
+
+
+def plist_data() -> dict[str, Any]:
+    python = shutil.which("python3.11") or sys.executable
+    environment = {
+        "ASTRO_TELEMETRY_DISABLED": "1",
+        "PYTHONUNBUFFERED": "1",
+        "npm_config_cache": str(ROOT / ".npm-cache"),
+    }
+    if os.environ.get("PATH"):
+        environment["PATH"] = os.environ["PATH"]
+    return {
+        "Label": LABEL,
+        "ProgramArguments": [
+            python,
+            str(ROOT / "scripts" / "hub-dev"),
+        ],
+        "WorkingDirectory": str(ROOT),
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "EnvironmentVariables": environment,
+        "StandardOutPath": str(STDOUT_LOG),
+        "StandardErrorPath": str(STDERR_LOG),
+    }
+
+
+def plist_bytes() -> bytes:
+    return plistlib.dumps(plist_data(), sort_keys=False)
+
+
+def write_plist() -> None:
+    LAUNCH_AGENTS_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    new_content = plist_bytes()
+    if PLIST_PATH.exists():
+        old_content = PLIST_PATH.read_bytes()
+        if old_content == new_content:
+            print(f"installed: {PLIST_PATH}")
+            return
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        backup = PLIST_PATH.with_suffix(f".plist.bak-{stamp}")
+        PLIST_PATH.replace(backup)
+        print(f"backup: {backup}")
+    PLIST_PATH.write_bytes(new_content)
+    print(f"installed: {PLIST_PATH}")
+
+
+def is_loaded() -> bool:
+    if sys.platform != "darwin" or not shutil.which("launchctl"):
+        return False
+    result = run_launchctl("print", service_target(), check=False)
+    return result.returncode == 0
+
+
+def launchd_summary() -> dict[str, Any]:
+    installed = PLIST_PATH.exists()
+    if sys.platform != "darwin":
+        return {
+            "label": LABEL,
+            "installed": installed,
+            "loaded": False,
+            "message": "launchd is available only on macOS",
+        }
+    if not shutil.which("launchctl"):
+        return {
+            "label": LABEL,
+            "installed": installed,
+            "loaded": False,
+            "message": "launchctl was not found",
+        }
+    result = run_launchctl("print", service_target(), check=False)
+    loaded = result.returncode == 0
+    message = "loaded" if loaded else "not loaded"
+    pid = None
+    if loaded:
+        for line in result.stdout.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("pid = "):
+                try:
+                    pid = int(stripped.split("=", 1)[1].strip())
+                except ValueError:
+                    pid = None
+                break
+    return {
+        "label": LABEL,
+        "installed": installed,
+        "loaded": loaded,
+        "pid": pid,
+        "plist": str(PLIST_PATH),
+        "stdout_log": str(STDOUT_LOG),
+        "stderr_log": str(STDERR_LOG),
+        "message": message,
+    }
+
+
+def command_install(args: argparse.Namespace) -> int:
+    if args.dry_run:
+        sys.stdout.buffer.write(plist_bytes())
+        return 0
+    require_launchctl()
+    write_plist()
+    print("next: make hub-start")
+    return 0
+
+
+def command_start(_args: argparse.Namespace) -> int:
+    require_launchctl()
+    if not PLIST_PATH.exists():
+        raise RuntimeError(f"{PLIST_PATH} is missing; run make hub-install first")
+    if not is_loaded():
+        run_launchctl("bootstrap", domain_target(), str(PLIST_PATH), check=True)
+        print(f"bootstrapped: {LABEL}")
+    run_launchctl("enable", service_target(), check=False)
+    run_launchctl("kickstart", "-k", service_target(), check=True)
+    print(f"started: {LABEL}")
+    print("next: make hub-status")
+    return 0
+
+
+def command_stop(_args: argparse.Namespace) -> int:
+    require_launchctl()
+    if is_loaded():
+        run_launchctl("bootout", service_target(), check=True)
+        print(f"stopped: {LABEL}")
+    else:
+        print(f"not loaded: {LABEL}")
+    return 0
+
+
+def command_restart(args: argparse.Namespace) -> int:
+    command_stop(args)
+    return command_start(args)
+
+
+def command_uninstall(_args: argparse.Namespace) -> int:
+    require_launchctl()
+    if is_loaded():
+        run_launchctl("bootout", service_target(), check=True)
+        print(f"stopped: {LABEL}")
+    if PLIST_PATH.exists():
+        PLIST_PATH.unlink()
+        print(f"removed: {PLIST_PATH}")
+    else:
+        print(f"missing: {PLIST_PATH}")
+    return 0
+
+
+def command_status(_args: argparse.Namespace) -> int:
+    summary = launchd_summary()
+    print(f"label: {summary['label']}")
+    print(f"installed: {'yes' if summary['installed'] else 'no'}")
+    print(f"loaded: {'yes' if summary['loaded'] else 'no'}")
+    if summary.get("pid"):
+        print(f"pid: {summary['pid']}")
+    if summary.get("plist"):
+        print(f"plist: {summary['plist']}")
+    if summary.get("stdout_log"):
+        print(f"stdout: {summary['stdout_log']}")
+    if summary.get("stderr_log"):
+        print(f"stderr: {summary['stderr_log']}")
+    print(f"message: {summary['message']}")
+    return 0
+
+
+def command_logs(args: argparse.Namespace) -> int:
+    paths = [STDOUT_LOG, STDERR_LOG]
+    existing = [path for path in paths if path.exists()]
+    if not existing:
+        print("no runtime logs yet")
+        print(f"expected: {STDOUT_LOG}")
+        print(f"expected: {STDERR_LOG}")
+        return 0
+    tail = shutil.which("tail")
+    if not tail:
+        for path in existing:
+            print(f"==> {path} <==")
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            for line in lines[-args.lines :]:
+                print(line)
+        return 0
+    command = [tail]
+    if args.follow:
+        command.append("-f")
+    command.extend(["-n", str(args.lines), *map(str, existing)])
+    return subprocess.call(command)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Manage AI Docs Hub launchd runtime.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    install = subparsers.add_parser("install", help="Install the user LaunchAgent plist.")
+    install.add_argument("--dry-run", action="store_true", help="Print plist XML without writing it.")
+    install.set_defaults(func=command_install)
+
+    subparsers.add_parser("start", help="Start the LaunchAgent.").set_defaults(func=command_start)
+    subparsers.add_parser("stop", help="Stop the LaunchAgent.").set_defaults(func=command_stop)
+    subparsers.add_parser("restart", help="Restart the LaunchAgent.").set_defaults(func=command_restart)
+    subparsers.add_parser("uninstall", help="Stop and remove the LaunchAgent plist.").set_defaults(func=command_uninstall)
+    subparsers.add_parser("status", help="Show LaunchAgent status.").set_defaults(func=command_status)
+
+    logs = subparsers.add_parser("logs", help="Show runtime logs.")
+    logs.add_argument("-n", "--lines", type=int, default=80, help="Number of lines to show.")
+    logs.add_argument("-f", "--follow", action="store_true", help="Follow logs.")
+    logs.set_defaults(func=command_logs)
+
+    args = parser.parse_args()
+    try:
+        return int(args.func(args))
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

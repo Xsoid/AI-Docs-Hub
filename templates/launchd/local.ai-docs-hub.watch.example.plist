@@ -8,14 +8,14 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/python3.11</string>
-    <string>/ABSOLUTE/PATH/TO/ai-docs-hub/scripts/watch-project</string>
+    <string>__PYTHON3_11__</string>
+    <string>__AI_DOCS_HUB_ROOT__/scripts/watch-project</string>
     <string>--project</string>
     <string>example-project</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/ABSOLUTE/PATH/TO/ai-docs-hub</string>
+  <string>__AI_DOCS_HUB_ROOT__</string>
 
   <key>RunAtLoad</key>
   <true/>
@@ -24,9 +24,9 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/ABSOLUTE/PATH/TO/ai-docs-hub/storage/watch-example-project.out.log</string>
+  <string>__AI_DOCS_HUB_ROOT__/storage/watch-example-project.out.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/ABSOLUTE/PATH/TO/ai-docs-hub/storage/watch-example-project.err.log</string>
+  <string>__AI_DOCS_HUB_ROOT__/storage/watch-example-project.err.log</string>
 </dict>
 </plist>

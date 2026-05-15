@@ -78,7 +78,7 @@ def render_project_page(config: Any) -> str:
         "## Project",
         "",
         f"- Namespace: `{config.namespace}`",
-        f"- Root: `{config.root}`",
+        f"- Root: `{config.root_source}`",
         f"- Status: `{status}`",
     ]
 

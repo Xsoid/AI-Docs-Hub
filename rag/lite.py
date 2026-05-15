@@ -48,7 +48,7 @@ def collect_project_files(config: ProjectConfig) -> list[Path]:
     if not config.root.exists():
         raise ValueError(
             f"Project root does not exist: {config.root}. "
-            "Set root to an absolute path outside the hub before indexing."
+            "Set root to a resolvable external project path before indexing."
         )
 
     root = config.root.resolve()

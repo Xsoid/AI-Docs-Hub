@@ -14,6 +14,7 @@ export default defineConfig({
         {
           label: 'Hub',
           items: [
+            { label: 'Статус', link: '/status/' },
             { label: 'Overview', slug: 'hub/overview' },
             { label: 'Architecture', slug: 'hub/architecture' },
             { label: 'Autonomous Setup', slug: 'hub/autonomous-setup' },

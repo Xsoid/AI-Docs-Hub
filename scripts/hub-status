@@ -1,0 +1,479 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from rag.health import run_healthcheck  # noqa: E402
+
+DOCS_URL = "http://localhost:4321/"
+RUNTIME_DIR = ROOT / "storage" / "runtime"
+HUB_DEV_STATUS_PATH = RUNTIME_DIR / "hub-dev.status.json"
+LAUNCHD_LABEL = "local.ai-docs-hub.runtime"
+LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
+LAUNCHD_STDOUT_LOG = ROOT / "storage" / "logs" / "hub-runtime.out.log"
+LAUNCHD_STDERR_LOG = ROOT / "storage" / "logs" / "hub-runtime.err.log"
+
+
+@dataclass
+class Component:
+    name: str
+    status: str
+    message: str
+    required: bool = True
+    details: dict[str, Any] | None = None
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def isoformat(dt: datetime) -> str:
+    return dt.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def parse_iso(value: str) -> datetime | None:
+    try:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def process_exists(pid: int | None) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def launchd_service_target() -> str:
+    return f"gui/{os.getuid()}/{LAUNCHD_LABEL}"
+
+
+def launchd_state() -> dict[str, Any]:
+    installed = LAUNCHD_PLIST_PATH.exists()
+    state: dict[str, Any] = {
+        "label": LAUNCHD_LABEL,
+        "installed": installed,
+        "loaded": False,
+        "plist": str(LAUNCHD_PLIST_PATH),
+        "stdout_log": str(LAUNCHD_STDOUT_LOG),
+        "stderr_log": str(LAUNCHD_STDERR_LOG),
+    }
+    if sys.platform != "darwin":
+        state["message"] = "launchd is available only on macOS"
+        return state
+    launchctl = shutil.which("launchctl")
+    if not launchctl:
+        state["message"] = "launchctl was not found"
+        return state
+    result = subprocess.run(
+        [launchctl, "print", launchd_service_target()],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=3,
+        check=False,
+    )
+    if result.returncode != 0:
+        state["message"] = "not loaded"
+        return state
+    state["loaded"] = True
+    state["message"] = "loaded"
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("pid = "):
+            try:
+                state["pid"] = int(stripped.split("=", 1)[1].strip())
+            except ValueError:
+                pass
+            break
+    return state
+
+
+def hub_dev_status() -> tuple[dict[str, Any] | None, float | None, str | None]:
+    if not HUB_DEV_STATUS_PATH.exists():
+        return None, None, f"no heartbeat at {HUB_DEV_STATUS_PATH.relative_to(ROOT)}"
+    try:
+        data = json.loads(HUB_DEV_STATUS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, None, f"invalid heartbeat: {exc}"
+    checked_at = parse_iso(str(data.get("checked_at", "")))
+    if checked_at is None:
+        return data, None, "heartbeat has invalid checked_at"
+    age = (utc_now() - checked_at).total_seconds()
+    return data, age, None
+
+
+def check_runtime(stale_after: float) -> Component:
+    launchd = launchd_state()
+    data, age, error = hub_dev_status()
+    if launchd.get("loaded"):
+        pid_text = f" pid {launchd['pid']}" if launchd.get("pid") else ""
+        return Component(
+            "runtime",
+            "ok",
+            f"launchd {LAUNCHD_LABEL} loaded{pid_text}",
+            required=False,
+            details={"launchd": launchd, "hub_dev": data or {}},
+        )
+    if data and error is None and age is not None:
+        pid = data.get("pid")
+        if data.get("status") == "running" and process_exists(pid) and age <= stale_after:
+            return Component(
+                "runtime",
+                "ok",
+                f"foreground hub-dev pid {pid}, heartbeat {age:.0f}s old",
+                required=False,
+                details={"launchd": launchd, "hub_dev": data},
+            )
+    if launchd.get("installed"):
+        return Component(
+            "runtime",
+            "down",
+            f"launchd {LAUNCHD_LABEL} installed but not loaded",
+            required=False,
+            details={"launchd": launchd, "hub_dev": data or {}},
+        )
+    return Component(
+        "runtime",
+        "down",
+        "no foreground hub-dev and launchd is not installed",
+        required=False,
+        details={"launchd": launchd, "hub_dev": data or {}, "heartbeat_error": error},
+    )
+
+
+def port_listeners(port: int) -> list[dict[str, Any]]:
+    try:
+        result = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    listeners: list[dict[str, Any]] = []
+    for line in result.stdout.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) >= 2:
+            try:
+                pid = int(parts[1])
+            except ValueError:
+                pid = None
+            listeners.append({"command": parts[0], "pid": pid, "raw": line})
+    return listeners
+
+
+def check_docs_site(url: str, timeout: float) -> Component:
+    port = urllib.parse.urlparse(url).port or 80
+    listeners = port_listeners(port)
+    request = urllib.request.Request(url, method="HEAD")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            status_code = response.status
+    except urllib.error.HTTPError as exc:
+        status_code = exc.code
+    except urllib.error.URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        return Component(
+            "docs-site",
+            "down",
+            f"{reason} at {url}",
+            details={"url": url, "listeners": listeners},
+        )
+    except (TimeoutError, socket.timeout) as exc:
+        return Component(
+            "docs-site",
+            "down",
+            f"timeout at {url}: {exc}",
+            details={"url": url, "listeners": listeners},
+        )
+
+    if 200 <= status_code < 400:
+        pid_text = ""
+        if listeners:
+            pid_text = " pid " + ",".join(str(item["pid"]) for item in listeners if item.get("pid"))
+        return Component(
+            "docs-site",
+            "ok",
+            f"HTTP {status_code} at {url}{pid_text}",
+            details={"url": url, "http_status": status_code, "listeners": listeners},
+        )
+    return Component(
+        "docs-site",
+        "down",
+        f"HTTP {status_code} at {url}",
+        details={"url": url, "http_status": status_code, "listeners": listeners},
+    )
+
+
+def check_repository_and_rag() -> tuple[Component, Component]:
+    try:
+        report = run_healthcheck()
+    except Exception as exc:  # noqa: BLE001
+        repository = Component("repository", "error", f"healthcheck failed: {exc}")
+        rag = Component("rag", "error", "healthcheck did not complete")
+        return repository, rag
+
+    status = str(report.get("status", "error"))
+    repository_status = "ok" if status == "ok" else "warning" if status == "degraded" else "error"
+    repository = Component(
+        "repository",
+        repository_status,
+        f"healthcheck {status}",
+        details=report,
+    )
+
+    rag_check = None
+    for check in report.get("checks", []):
+        if check.get("name") == "rag_backend":
+            rag_check = check
+            break
+    if not rag_check:
+        rag = Component("rag", "error", "rag_backend check is missing")
+    else:
+        rag_status = "ok" if rag_check.get("status") == "ok" else "error"
+        backend = rag_check.get("backend", "unknown")
+        index_count = rag_check.get("index_count", 0)
+        rag = Component(
+            "rag",
+            rag_status,
+            f"{backend}, {index_count} indexes",
+            details=rag_check,
+        )
+    return repository, rag
+
+
+def check_mcp(timeout: float) -> Component:
+    messages = [
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "ai-docs-hub-status", "version": "0.1.0"},
+            },
+        },
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "healthcheck", "arguments": {}},
+        },
+    ]
+    payload = "\n".join(json.dumps(message) for message in messages) + "\n"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "mcp" / "server.py")],
+            input=payload,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return Component("mcp", "down", f"MCP test timed out after {timeout:.0f}s")
+    except OSError as exc:
+        return Component("mcp", "down", f"failed to start MCP server: {exc}")
+
+    responses: list[dict[str, Any]] = []
+    for line in result.stdout.splitlines():
+        try:
+            responses.append(json.loads(line))
+        except json.JSONDecodeError:
+            return Component("mcp", "down", f"invalid JSON-RPC response: {line[:120]}")
+
+    tools_response = next((item for item in responses if item.get("id") == 2), None)
+    health_response = next((item for item in responses if item.get("id") == 3), None)
+    if not tools_response or "result" not in tools_response:
+        return Component(
+            "mcp",
+            "down",
+            "tools/list failed",
+            details={"stdout": result.stdout, "stderr": result.stderr},
+        )
+    tools = tools_response["result"].get("tools", [])
+    if not health_response or health_response.get("result", {}).get("isError"):
+        return Component(
+            "mcp",
+            "down",
+            f"{len(tools)} tools available, healthcheck call failed",
+            details={"responses": responses, "stderr": result.stderr},
+        )
+    return Component(
+        "mcp",
+        "ok",
+        f"{len(tools)} tools available",
+        details={"tool_count": len(tools), "stderr": result.stderr},
+    )
+
+
+def check_watcher(stale_after: float) -> Component:
+    data, age, error = hub_dev_status()
+    if data is None and error:
+        return Component(
+            "watcher",
+            "down",
+            error,
+            required=False,
+        )
+    if data is None:
+        return Component("watcher", "down", "no hub-dev status", required=False)
+    if error:
+        return Component("watcher", "down", error, required=False, details=data)
+    if age is None:
+        return Component("watcher", "down", "heartbeat age is unknown", required=False, details=data)
+    if data.get("status") != "running":
+        return Component(
+            "watcher",
+            "down",
+            f"hub-dev status is {data.get('status')}",
+            required=False,
+            details=data,
+        )
+    if age > stale_after:
+        return Component(
+            "watcher",
+            "down",
+            f"stale heartbeat: {age:.0f}s old",
+            required=False,
+            details=data,
+        )
+    watcher = data.get("children", {}).get("watcher")
+    if not watcher:
+        return Component("watcher", "down", "hub-dev is running without watcher", required=False, details=data)
+    pid = watcher.get("pid")
+    if watcher.get("status") == "running" and process_exists(pid):
+        return Component(
+            "watcher",
+            "ok",
+            f"heartbeat {age:.0f}s old, pid {pid}",
+            required=False,
+            details=data,
+        )
+    return Component(
+        "watcher",
+        "down",
+        f"watcher status is {watcher.get('status')}, pid {pid}",
+        required=False,
+        details=data,
+    )
+
+
+def overall_status(components: list[Component]) -> tuple[str, int]:
+    required_failed = any(
+        component.required and component.status in {"down", "error"}
+        for component in components
+    )
+    degraded = any(component.status != "ok" for component in components)
+    if required_failed:
+        return "DOWN", 1
+    if degraded:
+        return "DEGRADED", 2
+    return "UP", 0
+
+
+def render_human(overall: str, components: list[Component]) -> str:
+    lines = [f"AI Docs Hub: {overall}", ""]
+    width = max(len(component.name) for component in components)
+    for component in components:
+        status = component.status.upper()
+        lines.append(f"{component.name:<{width}}  {status:<8} {component.message}")
+    next_steps: list[str] = []
+    by_name = {component.name: component for component in components}
+    if by_name["runtime"].status != "ok":
+        next_steps.append("start foreground runtime: make hub-dev")
+        next_steps.append("install persistent runtime: make hub-install && make hub-start")
+    if by_name["docs-site"].status != "ok":
+        next_steps.append("inspect docs-site through runtime logs: make hub-logs")
+    if by_name["mcp"].status != "ok":
+        next_steps.append("inspect MCP startup: make mcp-test")
+    if by_name["repository"].status == "error":
+        next_steps.append("inspect repository health: make healthcheck")
+    if by_name["watcher"].status != "ok":
+        next_steps.append("watcher heartbeat is produced by make hub-dev")
+    lines.extend(["", "runtime:", f"{HUB_DEV_STATUS_PATH.relative_to(ROOT)}"])
+    if next_steps:
+        lines.append("")
+        lines.append("next:")
+        lines.extend(f"- {step}" for step in next_steps)
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Show live AI Docs Hub runtime status.")
+    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    parser.add_argument("--url", default=DOCS_URL, help=f"Docs-site URL. Default: {DOCS_URL}")
+    parser.add_argument("--timeout", type=float, default=5.0, help="Network/MCP timeout in seconds.")
+    parser.add_argument(
+        "--watcher-stale-after",
+        type=float,
+        default=10.0,
+        help="Seconds before hub-dev watcher heartbeat is considered stale.",
+    )
+    args = parser.parse_args()
+
+    repository, rag = check_repository_and_rag()
+    components = [
+        check_runtime(stale_after=args.watcher_stale_after),
+        check_docs_site(args.url, timeout=args.timeout),
+        repository,
+        rag,
+        check_mcp(timeout=args.timeout),
+        check_watcher(stale_after=args.watcher_stale_after),
+    ]
+    overall, exit_code = overall_status(components)
+    if args.json:
+        payload = {
+            "status": overall.lower(),
+            "checked_at": isoformat(utc_now()),
+            "exit_code": exit_code,
+            "components": {
+                component.name: {
+                    "status": component.status,
+                    "message": component.message,
+                    "required": component.required,
+                    "details": component.details or {},
+                }
+                for component in components
+            },
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(render_human(overall, components))
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

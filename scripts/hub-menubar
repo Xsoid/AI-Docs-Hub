@@ -1,0 +1,154 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+
+import argparse
+import os
+import plistlib
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "macos" / "menu-bar" / "AIHubMenuBar.swift"
+APP_DIR = ROOT / "build" / "AI Docs Hub.app"
+CONTENTS_DIR = APP_DIR / "Contents"
+MACOS_DIR = CONTENTS_DIR / "MacOS"
+EXECUTABLE = MACOS_DIR / "AI Docs Hub Menu"
+PLIST_PATH = CONTENTS_DIR / "Info.plist"
+BUNDLE_ID = "local.ai-docs-hub.menubar"
+PROCESS_MARKER = str(EXECUTABLE)
+
+
+def build_app() -> None:
+    swiftc = shutil.which("swiftc")
+    if not swiftc:
+        raise RuntimeError("swiftc was not found; install Xcode Command Line Tools")
+    MACOS_DIR.mkdir(parents=True, exist_ok=True)
+    info = {
+        "CFBundleDevelopmentRegion": "ru",
+        "CFBundleExecutable": EXECUTABLE.name,
+        "CFBundleIdentifier": BUNDLE_ID,
+        "CFBundleInfoDictionaryVersion": "6.0",
+        "CFBundleName": "AI Docs Hub",
+        "CFBundlePackageType": "APPL",
+        "CFBundleShortVersionString": "0.1.0",
+        "CFBundleVersion": "1",
+        "LSMinimumSystemVersion": "13.0",
+        "LSUIElement": True,
+    }
+    PLIST_PATH.write_bytes(plistlib.dumps(info, sort_keys=False))
+    result = subprocess.run(
+        [swiftc, "-O", "-framework", "AppKit", "-o", str(EXECUTABLE), str(SOURCE)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stdout.strip() or "swiftc failed")
+    print(f"built: {APP_DIR}")
+
+
+def menu_pids() -> list[int]:
+    result = subprocess.run(
+        ["ps", "-axo", "pid=,command="],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    pids: list[int] = []
+    marker = PROCESS_MARKER
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        pid_text, _, command = stripped.partition(" ")
+        if command == marker or command.startswith(marker + " "):
+            try:
+                pids.append(int(pid_text))
+            except ValueError:
+                continue
+    return pids
+
+
+def command_build(_args: argparse.Namespace) -> int:
+    build_app()
+    return 0
+
+
+def command_start(_args: argparse.Namespace) -> int:
+    pids = menu_pids()
+    if pids:
+        print(f"already running: {', '.join(map(str, pids))}")
+        return 0
+    build_app()
+    env = os.environ.copy()
+    env["AI_DOCS_HUB_ROOT"] = str(ROOT)
+    subprocess.Popen(
+        [str(EXECUTABLE)],
+        cwd=str(ROOT),
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    print(f"started: {APP_DIR}")
+    return 0
+
+
+def stop_running() -> list[int]:
+    pids = menu_pids()
+    for pid in pids:
+        os.kill(pid, signal.SIGTERM)
+        print(f"stopped: {pid}")
+    return pids
+
+
+def command_stop(_args: argparse.Namespace) -> int:
+    pids = stop_running()
+    if not pids:
+        print("not running")
+    return 0
+
+
+def command_restart(args: argparse.Namespace) -> int:
+    stop_running()
+    for _ in range(20):
+        if not menu_pids():
+            break
+        time.sleep(0.1)
+    return command_start(args)
+
+
+def command_status(_args: argparse.Namespace) -> int:
+    pids = menu_pids()
+    print(f"app: {APP_DIR}")
+    print(f"built: {'yes' if EXECUTABLE.exists() else 'no'}")
+    print(f"running: {'yes' if pids else 'no'}")
+    if pids:
+        print(f"pid: {', '.join(map(str, pids))}")
+    return 0 if pids else 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build and run the AI Docs Hub macOS menu bar app.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("build", help="Build the .app bundle.").set_defaults(func=command_build)
+    subparsers.add_parser("start", help="Build and open the menu bar app.").set_defaults(func=command_start)
+    subparsers.add_parser("stop", help="Quit the menu bar app.").set_defaults(func=command_stop)
+    subparsers.add_parser("restart", help="Rebuild and restart the menu bar app.").set_defaults(func=command_restart)
+    subparsers.add_parser("status", help="Show menu bar app status.").set_defaults(func=command_status)
+    args = parser.parse_args()
+    try:
+        return int(args.func(args))
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
