@@ -53,8 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         configureMenu()
-        configureButton(title: "xAI ...")
-        refreshStatus(nil)
+        configureButton(title: "xAI")
+        
         timer = Timer.scheduledTimer(
             timeInterval: 5,
             target: self,
@@ -62,13 +62,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             userInfo: nil,
             repeats: true
         )
+        
+        // Initial refresh with small delay to ensure app is ready
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.refreshStatus(nil)
+        }
     }
 
     private func configureButton(title: String) {
         if let button = statusItem.button {
             button.title = title
             button.toolTip = "AI Docs Hub"
-            button.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
+            button.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         }
     }
 
