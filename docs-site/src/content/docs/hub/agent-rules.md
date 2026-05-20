@@ -10,3 +10,4 @@ description: Rules for agents using the hub.
 - If documentation and code conflict, report the conflict with source paths.
 - If project context is missing, say that no matching context was found.
 - Treat RAG output as an index over docs-as-code, not as the source of truth.
+- Treat hub documentation as part of the implementation: update `docs/`, docs-site content, and `docs/changes/` whenever a hub change affects architecture, RAG, MCP, docs-site, indexing, generated context, runtime, operations, project config behavior, or agent workflow.

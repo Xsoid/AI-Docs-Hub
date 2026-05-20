@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import ProjectConfig, get_project_config
+from .docs_quality import documentation_readiness
 from .lite import collect_project_files, load_index
 from .wiki_links import extract_wiki_links
 
@@ -27,6 +28,8 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
         Lint report with issues, statistics, and recommendations
     """
     config = get_project_config(project)
+    readiness = documentation_readiness(config)
+    readiness_issues = _readiness_to_issues(readiness)
     
     try:
         index = load_index(project)
@@ -35,8 +38,15 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
             "project": project,
             "status": "not_indexed",
             "message": f"Project not indexed. Run: make index PROJECT={project}",
-            "issues": [],
-            "statistics": {"total_documents": 0, "total_issues": 0},
+            "issues": readiness_issues,
+            "statistics": {
+                "total_documents": 0,
+                "total_issues": len(readiness_issues),
+                "documentation_gaps": len(readiness_issues),
+                "documentation_coverage_percent": readiness.get("coverage", {}).get("percent", 0),
+            },
+            "documentation": readiness,
+            "recommendations": readiness.get("recommendations", []),
         }
     
     # Collect all available paths
@@ -66,6 +76,9 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
     # 5. Check for duplicate headings in same file
     duplicate_headings = _check_duplicate_headings(index)
     issues.extend(duplicate_headings)
+
+    # 6. Check project documentation completeness against hub standards
+    issues.extend(readiness_issues)
     
     # Categorize issues
     statistics = {
@@ -77,6 +90,8 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
         "orphan_pages": len([i for i in issues if i["type"] == "orphan_page"]),
         "missing_frontmatter": len([i for i in issues if i["type"] == "missing_frontmatter"]),
         "duplicate_headings": len([i for i in issues if i["type"] == "duplicate_heading"]),
+        "documentation_gaps": len([i for i in issues if i["type"] == "documentation_gap"]),
+        "documentation_coverage_percent": readiness.get("coverage", {}).get("percent", 0),
     }
     
     # Sort by severity and source_path
@@ -93,8 +108,26 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
         "status": "ok" if not issues else "has_issues",
         "issues": issues,
         "statistics": statistics,
+        "documentation": readiness,
         "recommendations": _generate_recommendations(issues, statistics),
     }
+
+
+def _readiness_to_issues(readiness: dict[str, Any]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for item in readiness.get("items", []):
+        status = item.get("status")
+        if status == "ok":
+            continue
+        issues.append(
+            {
+                "type": "documentation_gap",
+                "severity": "warning" if status == "missing" else "info",
+                "source_path": item.get("path", ""),
+                "message": item.get("message", "Documentation is incomplete"),
+            }
+        )
+    return issues
 
 
 def _check_broken_wiki_links(
@@ -280,6 +313,11 @@ def _generate_recommendations(issues: list[dict[str, Any]], statistics: dict[str
     if statistics["orphan_pages"] > 0:
         recommendations.append(
             f"Consider linking {statistics['orphan_pages']} orphan page(s) from other documents or removing them"
+        )
+
+    if statistics.get("documentation_gaps", 0) > 0:
+        recommendations.append(
+            f"Fill {statistics['documentation_gaps']} recommended documentation gap(s)"
         )
     
     if statistics["total_issues"] == 0:

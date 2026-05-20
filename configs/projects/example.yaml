@@ -2,6 +2,8 @@ project: example-project
 namespace: example-project
 title: "Example Project"
 root: "<EXTERNAL_PROJECT_ROOT>"
+docs_backend: auto
+mkdocs_config: "mkdocs.yml"
 
 sources:
   - path: "docs"

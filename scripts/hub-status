@@ -19,7 +19,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from rag.config import is_unbound_example_config, load_project_configs, validate_project_config  # noqa: E402
+from rag.docs_quality import documentation_readiness  # noqa: E402
 from rag.health import run_healthcheck  # noqa: E402
+from rag.sources import build_source_plan  # noqa: E402
 
 DOCS_URL = "http://localhost:4321/"
 RUNTIME_DIR = ROOT / "storage" / "runtime"
@@ -28,6 +31,10 @@ LAUNCHD_LABEL = "local.ai-docs-hub.runtime"
 LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
 LAUNCHD_STDOUT_LOG = ROOT / "storage" / "logs" / "hub-runtime.out.log"
 LAUNCHD_STDERR_LOG = ROOT / "storage" / "logs" / "hub-runtime.err.log"
+GENERATED_DIR = ROOT / "storage" / "generated"
+DOCS_PUBLIC_DIR = ROOT / "docs-site" / "public"
+PROJECT_PAGES_DIR = ROOT / "docs-site" / "src" / "content" / "docs" / "projects"
+LLMS_FILES = ("llms.txt", "llms-full.txt", "llms-small.txt")
 
 
 @dataclass
@@ -256,19 +263,439 @@ def check_repository_and_rag() -> tuple[Component, Component]:
         if check.get("name") == "rag_backend":
             rag_check = check
             break
+    rag_projects, rag_warnings, rag_errors = rag_project_statuses()
     if not rag_check:
         rag = Component("rag", "error", "rag_backend check is missing")
     else:
-        rag_status = "ok" if rag_check.get("status") == "ok" else "error"
+        if rag_errors:
+            rag_status = "error"
+        elif rag_warnings:
+            rag_status = "warning"
+        else:
+            rag_status = "ok" if rag_check.get("status") == "ok" else "error"
         backend = rag_check.get("backend", "unknown")
         index_count = rag_check.get("index_count", 0)
+        indexed_count = len([project for project in rag_projects if project.get("indexed")])
+        message = f"{backend}, {index_count} indexes"
+        if rag_projects:
+            message = f"{backend}, {indexed_count}/{len(rag_projects)} project indexes"
         rag = Component(
             "rag",
             rag_status,
-            f"{backend}, {index_count} indexes",
-            details=rag_check,
+            message,
+            details={
+                **rag_check,
+                "projects": rag_projects,
+                "warnings": rag_warnings,
+                "errors": rag_errors,
+            },
         )
     return repository, rag
+
+
+def real_project_configs() -> list[Any]:
+    return [
+        config
+        for config in sorted(load_project_configs().values(), key=lambda item: item.project)
+        if not is_unbound_example_config(config)
+    ]
+
+
+def rel_to_root(path: Path) -> str:
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def read_json_file(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return None, str(exc)
+    except json.JSONDecodeError as exc:
+        return None, f"invalid JSON: {exc}"
+    if not isinstance(data, dict):
+        return None, "JSON root is not an object"
+    return data, None
+
+
+def check_project_configs() -> Component:
+    try:
+        configs = real_project_configs()
+    except Exception as exc:  # noqa: BLE001
+        return Component("projects", "error", f"failed to load project configs: {exc}")
+
+    projects: list[dict[str, Any]] = []
+    warning_count = 0
+    error_count = 0
+    for config in configs:
+        issues = validate_project_config(config)
+        errors = [issue for issue in issues if issue.get("level") == "error"]
+        warnings = [issue for issue in issues if issue.get("level") == "warning"]
+        recommendations = [issue for issue in issues if issue.get("level") == "recommendation"]
+        source_plan = build_source_plan(config)
+        if errors:
+            state = "error"
+            error_count += 1
+        elif warnings:
+            state = "warning"
+            warning_count += 1
+        else:
+            state = "ok"
+        projects.append(
+            {
+                "project": config.project,
+                "namespace": config.namespace,
+                "status": state,
+                "root_configured": bool(config.root_source),
+                "root_exists": config.root.exists() and config.root.is_dir(),
+                "docs_backend": config.docs_backend,
+                "sources_count": len(config.sources),
+                "include_count": len(config.include),
+                "effective_include_count": len(source_plan.include),
+                "effective_exclude_count": len(source_plan.exclude),
+                "agent_rules_count": len(config.agent_rules),
+                "errors_count": len(errors),
+                "warnings_count": len(warnings),
+                "recommendations_count": len(recommendations),
+                "config_path": rel_to_root(config.config_path),
+            }
+        )
+
+    if error_count:
+        status = "error"
+        message = f"{error_count} project config(s) have errors"
+    elif warning_count:
+        status = "warning"
+        message = f"{warning_count} project config(s) have warnings"
+    else:
+        status = "ok"
+        message = f"{len(projects)} connected project config(s)"
+
+    return Component(
+        "projects",
+        status,
+        message,
+        details={
+            "projects": projects,
+            "project_count": len(projects),
+            "warning_count": warning_count,
+            "error_count": error_count,
+        },
+    )
+
+
+def rag_project_statuses() -> tuple[list[dict[str, Any]], list[dict[str, str]], list[dict[str, str]]]:
+    projects: list[dict[str, Any]] = []
+    warnings: list[dict[str, str]] = []
+    errors: list[dict[str, str]] = []
+    for config in real_project_configs():
+        issues = validate_project_config(config)
+        config_errors = [issue for issue in issues if issue.get("level") == "error"]
+        source_summary = project_source_file_summary(config)
+        if config_errors:
+            message = "; ".join(issue["message"] for issue in config_errors)
+            errors.append({"project": config.project, "message": message})
+            projects.append(
+                {
+                    "project": config.project,
+                    "status": "blocked",
+                    "indexed": False,
+                    "message": message,
+                    "index_path": rel_to_root(config.index_path),
+                    **source_summary,
+                }
+            )
+            continue
+
+        if not config.index_path.exists():
+            message = "index is missing"
+            warnings.append({"project": config.project, "message": message})
+            projects.append(
+                {
+                    "project": config.project,
+                    "status": "missing",
+                    "indexed": False,
+                    "message": message,
+                    "index_path": rel_to_root(config.index_path),
+                    "next_step": f"make index PROJECT={config.project}",
+                    **source_summary,
+                }
+            )
+            continue
+
+        index, error = read_json_file(config.index_path)
+        if error or index is None:
+            message = error or "index could not be read"
+            errors.append({"project": config.project, "message": message})
+            projects.append(
+                {
+                    "project": config.project,
+                    "status": "error",
+                    "indexed": False,
+                    "message": message,
+                    "index_path": rel_to_root(config.index_path),
+                    "next_step": f"make reindex PROJECT={config.project}",
+                    **source_summary,
+                }
+            )
+            continue
+
+        indexed_at = parse_iso(str(index.get("indexed_at", "")))
+        newest_source = source_summary.get("newest_source_mtime")
+        newest_source_dt = parse_iso(str(newest_source)) if newest_source else None
+        stale = bool(indexed_at and newest_source_dt and newest_source_dt.timestamp() > indexed_at.timestamp() + 1)
+        status = "stale" if stale else "indexed"
+        if stale:
+            warnings.append({"project": config.project, "message": "index is older than source documentation"})
+
+        projects.append(
+            {
+                "project": config.project,
+                "status": status,
+                "indexed": True,
+                "stale": stale,
+                "backend": index.get("backend", "unknown"),
+                "namespace": index.get("namespace", config.namespace),
+                "docs_backend": index.get("docs_backend", config.docs_backend),
+                "documents_count": int(index.get("documents_count", 0)),
+                "chunks_count": int(index.get("chunks_count", 0)),
+                "indexed_at": index.get("indexed_at"),
+                "index_path": rel_to_root(config.index_path),
+                "next_step": f"make reindex PROJECT={config.project}" if stale else "",
+                **source_summary,
+            }
+        )
+    return projects, warnings, errors
+
+
+def project_source_file_summary(config: Any) -> dict[str, Any]:
+    try:
+        files = collect_source_files_for_status(config)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "source_files_count": 0,
+            "source_scan_error": str(exc),
+        }
+    newest_path: Path | None = None
+    newest_mtime = 0.0
+    root = config.root.resolve() if config.root.exists() else config.root
+    for path in files:
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        if stat.st_mtime > newest_mtime:
+            newest_mtime = stat.st_mtime
+            newest_path = path
+    result: dict[str, Any] = {
+        "source_files_count": len(files),
+    }
+    if newest_path is not None:
+        result["newest_source_mtime"] = datetime.fromtimestamp(newest_mtime, timezone.utc).isoformat()
+        try:
+            result["newest_source_path"] = newest_path.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            result["newest_source_path"] = str(newest_path)
+    return result
+
+
+def collect_source_files_for_status(config: Any) -> list[Path]:
+    from rag.lite import collect_project_files  # noqa: PLC0415
+
+    return collect_project_files(config)
+
+
+def check_mkdocs() -> Component:
+    try:
+        configs = load_project_configs()
+    except Exception as exc:  # noqa: BLE001
+        return Component(
+            "mkdocs",
+            "warning",
+            f"failed to inspect MkDocs configs: {exc}",
+            required=False,
+        )
+
+    projects: list[dict[str, Any]] = []
+    warnings: list[dict[str, str]] = []
+    enabled_count = 0
+    detected_count = 0
+    requested_count = 0
+    inspected_count = 0
+    for config in configs.values():
+        if is_unbound_example_config(config):
+            continue
+        inspected_count += 1
+        source_plan = build_source_plan(config)
+        mkdocs = source_plan.mkdocs.to_dict()
+        if mkdocs.get("enabled"):
+            enabled_count += 1
+        if mkdocs.get("detected"):
+            detected_count += 1
+        if mkdocs.get("requested"):
+            requested_count += 1
+        for warning in mkdocs.get("warnings", []):
+            warnings.append({"project": config.project, "message": str(warning)})
+        projects.append(
+            {
+                "project": config.project,
+                "backend": mkdocs.get("backend"),
+                "requested": mkdocs.get("requested"),
+                "detected": mkdocs.get("detected"),
+                "enabled": mkdocs.get("enabled"),
+                "config_path": mkdocs.get("config_path"),
+                "docs_dir": mkdocs.get("docs_dir"),
+                "site_dir": mkdocs.get("site_dir"),
+                "site_name": mkdocs.get("site_name"),
+                "warnings": mkdocs.get("warnings", []),
+            }
+        )
+
+    if warnings:
+        status = "warning"
+        message = f"{enabled_count} active, {len(warnings)} warning(s)"
+    elif enabled_count:
+        status = "ok"
+        message = f"{enabled_count} active MkDocs project(s)"
+    else:
+        status = "ok"
+        message = "No MkDocs configs detected; configured include rules are active"
+
+    return Component(
+        "mkdocs",
+        status,
+        message,
+        required=False,
+        details={
+            "projects": projects,
+            "inspected_count": inspected_count,
+            "requested_count": requested_count,
+            "detected_count": detected_count,
+            "enabled_count": enabled_count,
+            "warnings": warnings,
+        },
+    )
+
+
+def check_documentation_readiness() -> Component:
+    try:
+        configs = real_project_configs()
+    except Exception as exc:  # noqa: BLE001
+        return Component(
+            "docs-readiness",
+            "warning",
+            f"failed to inspect documentation readiness: {exc}",
+            required=False,
+        )
+
+    projects: list[dict[str, Any]] = []
+    unknown_count = 0
+    gaps_count = 0
+    coverage_values: list[float] = []
+    for config in configs:
+        readiness = documentation_readiness(config)
+        coverage = readiness.get("coverage", {})
+        percent = float(coverage.get("percent", 0) or 0)
+        coverage_values.append(percent)
+        status = str(readiness.get("status", "unknown"))
+        if status == "unknown":
+            unknown_count += 1
+        if readiness.get("recommendations"):
+            gaps_count += 1
+        projects.append(
+            {
+                "project": config.project,
+                "status": status,
+                "docs_dir": readiness.get("docs_dir"),
+                "coverage_percent": percent,
+                "core_percent": (coverage.get("categories", {}).get("core", {}) or {}).get("percent", 0),
+                "technical_percent": (coverage.get("categories", {}).get("technical", {}) or {}).get("percent", 0),
+                "recommendations_count": len(readiness.get("recommendations", [])),
+                "scaffold_available": config.root.exists() and config.root.is_dir(),
+            }
+        )
+
+    average = round(sum(coverage_values) / max(1, len(coverage_values)), 1)
+    status = "warning" if unknown_count else "ok"
+    if gaps_count:
+        message = f"average coverage {average}%, {gaps_count} project(s) have recommendations"
+    else:
+        message = f"average coverage {average}%"
+    return Component(
+        "docs-readiness",
+        status,
+        message,
+        required=False,
+        details={
+            "projects": projects,
+            "average_coverage_percent": average,
+            "projects_with_recommendations": gaps_count,
+            "unknown_count": unknown_count,
+        },
+    )
+
+
+def check_generated_context() -> Component:
+    missing: list[str] = []
+    files: list[dict[str, Any]] = []
+    for base in (DOCS_PUBLIC_DIR, GENERATED_DIR):
+        for name in LLMS_FILES:
+            path = base / name
+            exists = path.exists() and path.is_file()
+            if not exists:
+                missing.append(rel_to_root(path))
+            files.append(
+                {
+                    "path": rel_to_root(path),
+                    "exists": exists,
+                    "bytes": path.stat().st_size if exists else 0,
+                }
+            )
+
+    report_path = GENERATED_DIR / "llms-report.json"
+    report_exists = report_path.exists() and report_path.is_file()
+    if not report_exists:
+        missing.append(rel_to_root(report_path))
+    report, report_error = read_json_file(report_path) if report_exists else ({}, None)
+    if report_error:
+        missing.append(f"{rel_to_root(report_path)} ({report_error})")
+
+    projects: list[dict[str, Any]] = []
+    for config in real_project_configs():
+        page = PROJECT_PAGES_DIR / config.project / "overview.md"
+        exists = page.exists() and page.is_file()
+        if not exists:
+            missing.append(rel_to_root(page))
+        projects.append(
+            {
+                "project": config.project,
+                "status": "generated" if exists else "missing",
+                "page_exists": exists,
+                "path": rel_to_root(page),
+            }
+        )
+
+    status = "warning" if missing else "ok"
+    generated_pages = len([project for project in projects if project.get("page_exists")])
+    if missing:
+        message = f"{len(missing)} generated artifact(s) missing"
+    else:
+        message = f"llms files ok, {generated_pages}/{len(projects)} project pages"
+    return Component(
+        "generated",
+        status,
+        message,
+        required=False,
+        details={
+            "files": files,
+            "report": report or {},
+            "report_path": rel_to_root(report_path),
+            "projects": projects,
+            "missing": missing,
+        },
+    )
 
 
 def check_mcp(timeout: float) -> Component:
@@ -449,7 +876,11 @@ def main() -> int:
         check_runtime(stale_after=args.watcher_stale_after),
         check_docs_site(args.url, timeout=args.timeout),
         repository,
+        check_project_configs(),
+        check_generated_context(),
         rag,
+        check_mkdocs(),
+        check_documentation_readiness(),
         check_mcp(timeout=args.timeout),
         check_watcher(stale_after=args.watcher_stale_after),
     ]

@@ -16,6 +16,7 @@ from .config import (
     load_project_configs,
     validate_project_config,
 )
+from .docs_quality import documentation_readiness
 
 
 def _command_output(command: str, *args: str) -> tuple[str | None, str | None]:
@@ -110,6 +111,7 @@ def run_healthcheck() -> dict[str, Any]:
             issues = validate_project_config(config)
             errors = [issue for issue in issues if issue["level"] == "error"]
             warnings = [issue for issue in issues if issue["level"] == "warning"]
+            recommendations = [issue for issue in issues if issue["level"] == "recommendation"]
             if errors:
                 add("project_config", "error", f"{name} has config errors", issues=issues)
             elif warnings:
@@ -118,7 +120,23 @@ def run_healthcheck() -> dict[str, Any]:
                 else:
                     add("project_config", "warning", f"{name} has config warnings", issues=issues)
             else:
-                add("project_config", "ok", f"{name} config is valid")
+                message = f"{name} config is valid"
+                if recommendations:
+                    message = f"{name} config is valid with documentation recommendations"
+                add("project_config", "ok", message, issues=issues)
+
+            if not is_unbound_example_config(config):
+                readiness = documentation_readiness(config)
+                if readiness.get("status") == "needs_work":
+                    add(
+                        "documentation_readiness",
+                        "ok",
+                        f"{name} documentation has recommended gaps",
+                        project=name,
+                        severity="recommendation",
+                        coverage=readiness.get("coverage", {}),
+                        recommendations=readiness.get("recommendations", []),
+                    )
     except Exception as exc:  # noqa: BLE001
         add("project_configs", "error", f"failed to load configs: {exc}")
 

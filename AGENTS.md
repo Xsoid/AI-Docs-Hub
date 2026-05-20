@@ -2,6 +2,8 @@
 
 This repository is the local AI Docs Hub. It stores infrastructure, generated artifacts, templates, indexes, and ecosystem-level documentation. Project-specific documentation must stay inside each connected project.
 
+Hub documentation is part of the implementation. When a change affects hub architecture, RAG, MCP, docs-site, indexing, generated context, project config behavior, runtime, operations, or agent workflow, update the source documentation in `docs/` and the matching docs-site content in `docs-site/src/content/docs/` in the same change. Add a change note in `docs/changes/` for behavior that affects usage, operations, debugging, or extension.
+
 Before changing RAG, MCP, docs-site, indexing, or generated context behavior:
 
 1. Read the architecture docs in `docs-site/src/content/docs/hub/architecture.md`.
@@ -13,5 +15,6 @@ Before changing RAG, MCP, docs-site, indexing, or generated context behavior:
 7. If documentation and code conflict, report the conflict with source paths instead of hiding it.
 8. If project context is not found, say that the search returned no matching context.
 9. Remember that docs-as-code is the source of truth. RAG indexes and `llms*.txt` files are derived artifacts.
+10. Do not leave hub documentation as a follow-up when the current change creates a new concept, command, status field, stack dependency, or operational workflow.
 
 Do not mix context from different projects unless the user directly asks for cross-project analysis.

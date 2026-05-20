@@ -195,6 +195,8 @@ project: my-project
 namespace: my-project
 title: "My Project"
 root: "${AI_DOCS_PROJECTS_ROOT}/my-project"
+docs_backend: auto
+mkdocs_config: "mkdocs.yml"
 
 sources:
   - path: "docs"
@@ -235,11 +237,33 @@ agent_rules:
 - относительный путь от корня хаба;
 - host-specific абсолютный путь только во внешнем локальном конфиге, который не коммитится.
 
+`docs_backend` управляет тем, как хаб обнаруживает документацию проекта:
+
+- `auto` - значение по умолчанию; если рядом с проектом есть `mkdocs.yml` или `mkdocs.yaml`, хаб использует его `docs_dir`, `exclude_docs` и `draft_docs`, иначе работает по обычным `include`;
+- `mkdocs` - ожидать MkDocs-конфиг, но не падать при его отсутствии; хаб покажет warning и продолжит по `include`;
+- `standard` - игнорировать MkDocs и использовать только `sources`/`include`/`exclude`.
+
+Хаб не выполняет MkDocs `plugins` или `hooks`; конфиг используется только как read-only описание структуры документации.
+
 Проверьте конфиг:
 
 ```sh
 make validate-configs
 ```
+
+Посмотреть, какие рекомендованные файлы документации Хаб может создать:
+
+```sh
+make scaffold-docs PROJECT=my-project
+```
+
+Создать недостающие файлы в подключенном проекте:
+
+```sh
+make scaffold-docs-write PROJECT=my-project
+```
+
+Запись в проект выполняется только этой явной командой. Dry-run не меняет файлы проекта. Scaffold покрывает не только базовые разделы, но и техническую документацию: configuration, security, data, integrations, observability, testing, troubleshooting, development, operations и infrastructure.
 
 ## 8. Как собрать docs-site
 

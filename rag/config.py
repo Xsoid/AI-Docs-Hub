@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .yaml_lite import load_yaml
+from .mkdocs import DEFAULT_MKDOCS_CONFIG, SUPPORTED_DOCS_BACKENDS
 
 
 HUB_ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,8 @@ class ProjectConfig:
     title: str
     root: Path
     root_source: str
+    docs_backend: str
+    mkdocs_config: str
     sources: list[dict[str, Any]]
     include: list[str]
     exclude: list[str]
@@ -55,6 +58,8 @@ def load_project_configs(configs_dir: Path = CONFIGS_DIR) -> dict[str, ProjectCo
             title=str(data.get("title", project)).strip(),
             root=resolve_project_root(root_source),
             root_source=root_source,
+            docs_backend=str(data.get("docs_backend", "auto") or "auto").strip().lower(),
+            mkdocs_config=str(data.get("mkdocs_config", DEFAULT_MKDOCS_CONFIG) or DEFAULT_MKDOCS_CONFIG).strip(),
             sources=list(data.get("sources") or []),
             include=list(data.get("include") or []),
             exclude=list(data.get("exclude") or []),
@@ -82,6 +87,15 @@ def validate_project_config(config: ProjectConfig) -> list[dict[str, str]]:
         issues.append({"level": "error", "message": "root is required"})
     if not config.namespace:
         issues.append({"level": "error", "message": "namespace is required"})
+    if config.docs_backend not in SUPPORTED_DOCS_BACKENDS:
+        issues.append(
+            {
+                "level": "error",
+                "message": "docs_backend must be one of: auto, standard, mkdocs",
+            }
+        )
+    if Path(config.mkdocs_config).expanduser().is_absolute():
+        issues.append({"level": "warning", "message": "mkdocs_config should be relative to the project root"})
     if not config.root.is_absolute() and not placeholder_root:
         issues.append({"level": "error", "message": "root must resolve to an absolute path"})
     if placeholder_root:
@@ -98,7 +112,17 @@ def validate_project_config(config: ProjectConfig) -> list[dict[str, str]]:
     if not config.root.exists():
         level = "warning" if placeholder_root else "error"
         issues.append({"level": level, "message": f"root does not exist: {config.root}"})
-    if not config.include:
+    if config.root.exists() and config.root.is_dir():
+        from .docs_quality import documentation_recommendation_issues
+        from .sources import build_source_plan
+
+        source_plan = build_source_plan(config)
+        for warning in source_plan.warnings:
+            issues.append({"level": "warning", "message": warning})
+        if not source_plan.include:
+            issues.append({"level": "error", "message": "include patterns are required"})
+        issues.extend(documentation_recommendation_issues(config))
+    elif not config.include:
         issues.append({"level": "error", "message": "include patterns are required"})
     return issues
 

@@ -6,6 +6,8 @@
 
 Каждое значимое изменение хаба должно обновлять `/docs`.
 
+Это не рекомендация на потом, а часть реализации. Нельзя завершать изменение хаба, если из-за него появилась новая команда, зависимость, статусное поле, runtime workflow, MCP/RAG behavior или architectural concept, но source-документация хаба осталась старой.
+
 Это включает изменения в:
 
 - RAG behavior;
@@ -16,6 +18,8 @@
 - runtime commands;
 - launch или supervision behavior;
 - project config behavior;
+- agent workflow;
+- stack dependencies;
 - operational workflows.
 
 ## Язык
@@ -40,6 +44,71 @@
 - `docs/decisions/` для ADR-style решений;
 - `docs/standards/` для правил, которым должны следовать будущие агенты и maintainers;
 - `docs/changes/` для человекочитаемых заметок о значимых изменениях.
+
+## Подключенные Проекты
+
+Хаб должен подталкивать проект к достаточной документационной структуре, но не должен ломать поиск только из-за неполной документации.
+
+Для подключенного проекта рекомендуются:
+
+- `README.md`;
+- `AGENTS.md`;
+- `docs/index.md`;
+- `docs/architecture/`;
+- `docs/modules/`;
+- `docs/decisions/`;
+- `docs/api/`;
+- `docs/deployment/`;
+- `docs/operations/`;
+- `docs/infrastructure/`;
+- `docs/configuration.md`;
+- `docs/security.md`;
+- `docs/data.md`;
+- `docs/integrations.md`;
+- `docs/observability.md`;
+- `docs/testing.md`;
+- `docs/troubleshooting.md`;
+- `docs/development.md`;
+- `docs/glossary.md`.
+
+Если проект использует MkDocs, `docs_dir` из `mkdocs.yml` заменяет стандартный `docs/` как корень этих рекомендаций.
+
+Отсутствующие или пустые разделы должны попадать в documentation readiness diagnostics как рекомендации. Это не config error и не причина смешивать контекст с другими проектами.
+
+Documentation readiness recommendations не являются operational health failure. Они должны оставаться видимыми в `healthcheck` и project profile, но не должны переводить repository/runtime status в `degraded`, если нет реальных config warnings или errors.
+
+Readiness должен считать общий documentation coverage percent и отдельное покрытие по категориям:
+
+- `core` - обзор, правила агента, архитектура, модули, решения, API, деплой и glossary;
+- `technical` - operations, infrastructure, configuration, security, data, integrations, observability, testing, troubleshooting и development.
+
+## Scaffold Документации
+
+Хаб может создать стартовые файлы для недостающих рекомендованных разделов:
+
+```sh
+make scaffold-docs PROJECT=project-name
+make scaffold-docs-write PROJECT=project-name
+```
+
+Правила:
+
+- `scaffold-docs` только показывает план и не меняет подключенный проект;
+- `scaffold-docs-write` является явным разрешением на запись в project root;
+- MCP-инструмент для scaffold обязан требовать `confirm=true`;
+- non-empty файлы нельзя перезаписывать;
+- пустые recommended-файлы можно заполнить шаблоном, если пользователь не отключил это поведение;
+- шаблоны не должны содержать секреты или host-specific значения.
+
+## MkDocs
+
+MkDocs поддерживается как read-only adapter для source discovery:
+
+- `docs_backend: auto` автоматически использует `mkdocs.yml`/`mkdocs.yaml`, если файл есть;
+- `docs_backend: mkdocs` ожидает MkDocs-конфиг, но при его отсутствии показывает warning и продолжает по обычным `include`;
+- `docs_backend: standard` игнорирует MkDocs.
+
+Хаб может читать `site_name`, `docs_dir`, `site_dir`, `nav`, `exclude_docs`, `draft_docs`, `not_in_nav` и простое `INHERIT` для определения источников. Хаб не выполняет `plugins`, `hooks`, Python code или Markdown extensions из MkDocs-конфига.
 
 ## Change Notes
 

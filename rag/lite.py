@@ -12,6 +12,7 @@ from typing import Any
 from .config import HUB_ROOT, INDEX_DIR, ProjectConfig, get_project_config, load_project_configs, validate_project_config
 from .logging import log_index_complete, log_index_error, log_index_started, log_secret_scan_blocked
 from .security import is_excluded, is_included, safe_resolve, scan_text_for_secrets
+from .sources import build_source_plan
 
 MAX_FILE_BYTES = 1_000_000
 MAX_READ_DOC_BYTES = 250_000
@@ -52,12 +53,13 @@ def collect_project_files(config: ProjectConfig) -> list[Path]:
         )
 
     root = config.root.resolve()
+    source_plan = build_source_plan(config)
     files: set[Path] = set()
-    for pattern in config.include:
+    for pattern in source_plan.include:
         for candidate in root.glob(pattern):
             if candidate.is_file():
                 rel = candidate.resolve().relative_to(root).as_posix()
-                if not is_excluded(rel, config.exclude):
+                if not is_excluded(rel, source_plan.exclude):
                     files.add(candidate.resolve())
     return sorted(files)
 
@@ -67,10 +69,11 @@ def check_project_secrets(config: ProjectConfig) -> dict[str, Any]:
     blocked: list[dict[str, Any]] = []
     scanned: list[str] = []
     root = config.root.resolve()
+    source_plan = build_source_plan(config)
 
     for path in files:
         rel = path.relative_to(root).as_posix()
-        if is_excluded(rel, config.exclude):
+        if is_excluded(rel, source_plan.exclude):
             blocked.append({"source_path": rel, "reason": "excluded_by_path"})
             continue
         text, truncated = _read_text(path)
@@ -170,13 +173,14 @@ def build_index(config: ProjectConfig, reindex: bool = False) -> dict[str, Any]:
             config.index_path.unlink()
 
         root = config.root.resolve()
+        source_plan = build_source_plan(config)
         files = collect_project_files(config)
         documents: list[dict[str, Any]] = []
         chunks: list[dict[str, Any]] = []
 
         for path in files:
             rel = path.relative_to(root).as_posix()
-            if not is_included(rel, config.include) or is_excluded(rel, config.exclude):
+            if not is_included(rel, source_plan.include) or is_excluded(rel, source_plan.exclude):
                 continue
             text, truncated = _read_text(path)
             digest = content_hash(text)
@@ -220,6 +224,8 @@ def build_index(config: ProjectConfig, reindex: bool = False) -> dict[str, Any]:
             "title": config.title,
             "root": str(config.root),
             "config_path": str(config.config_path.relative_to(HUB_ROOT)),
+            "docs_backend": config.docs_backend,
+            "source_plan": source_plan.to_dict(),
             "indexed_at": utc_now(),
             "documents_count": len(documents),
             "chunks_count": len(chunks),
@@ -324,9 +330,10 @@ def read_project_doc(project: str, source_path: str) -> dict[str, Any]:
         messages = "; ".join(issue["message"] for issue in errors)
         raise ValueError(f"Invalid project config {project}: {messages}")
     rel = source_path.strip().lstrip("/")
-    if is_excluded(rel, config.exclude):
+    source_plan = build_source_plan(config)
+    if is_excluded(rel, source_plan.exclude):
         raise PermissionError(f"Refusing to read excluded path: {source_path}")
-    if not is_included(rel, config.include):
+    if not is_included(rel, source_plan.include):
         raise PermissionError(f"Path is not allowed by include rules: {source_path}")
     path = safe_resolve(config.root, rel)
     if not path.exists() or not path.is_file():
@@ -358,6 +365,7 @@ def list_projects() -> list[dict[str, Any]]:
                 "namespace": config.namespace,
                 "title": config.title,
                 "root": str(config.root),
+                "docs_backend": config.docs_backend,
                 "config_path": str(config.config_path.relative_to(HUB_ROOT)),
                 "index_exists": config.index_path.exists(),
                 "issues": issues,
@@ -368,14 +376,24 @@ def list_projects() -> list[dict[str, Any]]:
 
 def project_profile(project: str) -> dict[str, Any]:
     config = get_project_config(project)
+    source_plan = build_source_plan(config)
+    from .docs_quality import documentation_readiness
+
     return {
         "project": config.project,
         "namespace": config.namespace,
         "title": config.title,
         "root": str(config.root),
+        "docs_backend": config.docs_backend,
+        "mkdocs_config": config.mkdocs_config,
         "sources": config.sources,
         "include": config.include,
         "exclude": config.exclude,
+        "effective_sources": source_plan.sources,
+        "effective_include": source_plan.include,
+        "effective_exclude": source_plan.exclude,
+        "mkdocs": source_plan.mkdocs.to_dict(),
+        "documentation": documentation_readiness(config),
         "agent_rules": config.agent_rules,
         "config_path": str(config.config_path.relative_to(HUB_ROOT)),
         "index_path": str(config.index_path.relative_to(HUB_ROOT)),

@@ -384,6 +384,77 @@ const title = 'Статус AI Docs Hub';
         color: var(--text);
       }
 
+      .detail-list {
+        display: grid;
+        gap: 8px;
+        margin: 14px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .detail-row {
+        display: grid;
+        gap: 5px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfbfa;
+      }
+
+      .detail-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .detail-title span:first-child {
+        overflow-wrap: anywhere;
+      }
+
+      .tag {
+        flex: 0 0 auto;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: var(--surface-2);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .tag[data-kind="ok"] {
+        background: var(--green-bg);
+        color: var(--green);
+      }
+
+      .tag[data-kind="warning"] {
+        background: var(--amber-bg);
+        color: var(--amber);
+      }
+
+      .tag[data-kind="error"],
+      .tag[data-kind="down"] {
+        background: var(--red-bg);
+        color: var(--red);
+      }
+
+      .tag[data-kind="info"] {
+        background: var(--blue-bg);
+        color: var(--blue);
+      }
+
+      .detail-meta {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+      }
+
       .footer {
         display: flex;
         align-items: center;
@@ -525,9 +596,25 @@ const title = 'Статус AI Docs Hub';
           title: 'Настройки',
           description: 'Проверяет файлы хаба, конфиги проектов и локальные зависимости.'
         },
+        projects: {
+          title: 'Проекты',
+          description: 'Показывает подключенные проекты, source discovery и project-scoped правила.'
+        },
+        generated: {
+          title: 'Generated context',
+          description: 'Проверяет derived project pages и llms*.txt.'
+        },
         rag: {
           title: 'Поиск по документам',
-          description: 'Проверяет локальный индекс для поиска по документации.'
+          description: 'Показывает backend, свежесть индексов, source-файлы, документы и чанки.'
+        },
+        mkdocs: {
+          title: 'MkDocs',
+          description: 'Показывает, какие проекты используют MkDocs как источник структуры документации.'
+        },
+        'docs-readiness': {
+          title: 'Документация',
+          description: 'Показывает покрытие recommended docs и доступность scaffold по проектам.'
         },
         mcp: {
           title: 'Связь с Codex',
@@ -568,6 +655,22 @@ const title = 'Статус AI Docs Hub';
           text: 'Страница получает состояние локального хаба.'
         }
       };
+
+      const astroScopeClass =
+        Array.from(document.querySelector('.shell')?.classList || []).find((className) =>
+          className.startsWith('astro-')
+        ) || '';
+
+      function applyAstroScope(element) {
+        if (astroScopeClass) element.classList.add(astroScopeClass);
+        return element;
+      }
+
+      function scopedElement(tagName, className) {
+        const element = document.createElement(tagName);
+        if (className) element.className = className;
+        return applyAstroScope(element);
+      }
 
       function formatTime(value) {
         if (!value) return '-';
@@ -610,8 +713,7 @@ const title = 'Статус AI Docs Hub';
       function componentCard(name, component) {
         const copy = componentCopy[name] || { title: name, description: 'Локальная проверка хаба.' };
         const status = component.status || 'warning';
-        const article = document.createElement('article');
-        article.className = 'component';
+        const article = scopedElement('article', 'component');
         article.innerHTML = `
           <div class="component-head">
             <h3></h3>
@@ -620,12 +722,141 @@ const title = 'Статус AI Docs Hub';
           <p></p>
           <p class="plain"></p>
         `;
+        article.querySelectorAll('*').forEach(applyAstroScope);
         article.querySelector('h3').textContent = copy.title;
         article.querySelector('.pill').textContent = statusText[status] || status;
         const paragraphs = article.querySelectorAll('p');
         paragraphs[0].textContent = copy.description;
         paragraphs[1].textContent = component.message || 'Нет сообщения.';
+        appendComponentDetails(name, article, component.details || {});
         return article;
+      }
+
+      function appendComponentDetails(name, article, details) {
+        if (name === 'projects') {
+          appendProjectRows(article, details.projects, projectConfigBadge, projectConfigMeta);
+        } else if (name === 'generated') {
+          appendProjectRows(article, details.projects, generatedBadge, generatedMeta);
+        } else if (name === 'rag') {
+          appendProjectRows(article, details.projects, ragBadge, ragMeta);
+        } else if (name === 'mkdocs') {
+          appendProjectRows(article, details.projects, mkdocsBadge, mkdocsMeta);
+        } else if (name === 'docs-readiness') {
+          appendProjectRows(article, details.projects, docsReadinessBadge, docsReadinessMeta);
+        }
+      }
+
+      function mkdocsBadge(project) {
+        if (project.enabled) return { text: 'активен', kind: 'ok' };
+        if (project.backend === 'standard') return { text: 'standard', kind: 'neutral' };
+        if (project.requested) return { text: 'ожидается', kind: 'warning' };
+        return { text: 'не найден', kind: 'neutral' };
+      }
+
+      function mkdocsMeta(project) {
+        const parts = [`backend: ${project.backend || 'unknown'}`];
+        if (project.config_path) parts.push(`config: ${project.config_path}`);
+        if (project.enabled && project.docs_dir) parts.push(`docs_dir: ${project.docs_dir}`);
+        if (project.site_name) parts.push(`site: ${project.site_name}`);
+        if (Array.isArray(project.warnings) && project.warnings.length) {
+          parts.push(project.warnings[0]);
+        }
+        return parts;
+      }
+
+      function projectConfigBadge(project) {
+        if (project.status === 'error') return { text: 'ошибка', kind: 'error' };
+        if (project.status === 'warning') return { text: 'внимание', kind: 'warning' };
+        if (!project.root_exists) return { text: 'нет root', kind: 'warning' };
+        return { text: 'подключён', kind: 'ok' };
+      }
+
+      function projectConfigMeta(project) {
+        return [
+          `namespace: ${project.namespace || project.project}`,
+          `backend: ${project.docs_backend || 'unknown'}`,
+          `include: ${project.effective_include_count ?? project.include_count ?? 0}`,
+          `exclude: ${project.effective_exclude_count ?? 0}`,
+          `agent rules: ${project.agent_rules_count ?? 0}`,
+          project.recommendations_count ? `docs recommendations: ${project.recommendations_count}` : ''
+        ];
+      }
+
+      function generatedBadge(project) {
+        if (project.page_exists) return { text: 'page ok', kind: 'ok' };
+        return { text: 'missing', kind: 'warning' };
+      }
+
+      function generatedMeta(project) {
+        return [project.path ? `page: ${project.path}` : 'project page'];
+      }
+
+      function ragBadge(project) {
+        if (project.stale || project.status === 'stale') return { text: 'stale', kind: 'warning' };
+        if (project.indexed) return { text: 'indexed', kind: 'ok' };
+        if (project.status === 'error' || project.status === 'blocked') return { text: project.status, kind: 'error' };
+        return { text: project.status || 'missing', kind: 'warning' };
+      }
+
+      function ragMeta(project) {
+        if (!project.indexed) {
+          return [project.message || 'index is not available', project.index_path ? `index: ${project.index_path}` : ''];
+        }
+        return [
+          `backend: ${project.backend || 'unknown'}`,
+          `source files: ${project.source_files_count ?? 0}`,
+          `docs: ${project.documents_count ?? 0}`,
+          `chunks: ${project.chunks_count ?? 0}`,
+          project.indexed_at ? `indexed: ${formatTime(project.indexed_at)}` : '',
+          project.newest_source_mtime ? `newest source: ${formatTime(project.newest_source_mtime)}` : '',
+          project.stale ? 'freshness: stale' : 'freshness: fresh',
+          project.index_path ? `index: ${project.index_path}` : '',
+          project.next_step ? `next: ${project.next_step}` : ''
+        ];
+      }
+
+      function docsReadinessBadge(project) {
+        const percent = Number(project.coverage_percent || 0);
+        if (project.status === 'unknown') return { text: 'unknown', kind: 'warning' };
+        if ((project.recommendations_count || 0) > 0) return { text: `${percent}%`, kind: 'warning' };
+        return { text: `${percent}%`, kind: 'ok' };
+      }
+
+      function docsReadinessMeta(project) {
+        return [
+          `docs_dir: ${project.docs_dir || 'docs'}`,
+          `core: ${project.core_percent ?? 0}%`,
+          `technical: ${project.technical_percent ?? 0}%`,
+          `recommendations: ${project.recommendations_count ?? 0}`,
+          project.scaffold_available ? 'scaffold: available' : 'scaffold: unavailable'
+        ];
+      }
+
+      function appendProjectRows(article, rawProjects, badgeFor, metaFor) {
+        const projects = Array.isArray(rawProjects) ? rawProjects : [];
+        if (!projects.length) return;
+
+        const list = scopedElement('ul', 'detail-list');
+        for (const project of projects) {
+          const badge = badgeFor(project);
+          const row = scopedElement('li', 'detail-row');
+
+          const title = scopedElement('div', 'detail-title');
+          const name = scopedElement('span');
+          name.textContent = project.project || 'project';
+          const tag = scopedElement('span', 'tag');
+          tag.dataset.kind = badge.kind;
+          tag.textContent = badge.text;
+          title.append(name, tag);
+
+          const meta = scopedElement('div', 'detail-meta');
+          const parts = metaFor(project).filter(Boolean);
+          meta.textContent = parts.join(' · ');
+
+          row.append(title, meta);
+          list.append(row);
+        }
+        article.append(list);
       }
 
       function setActions(payload) {
@@ -643,7 +874,7 @@ const title = 'Статус AI Docs Hub';
         const next = Array.isArray(payload.next) ? payload.next.map(translateStep) : [];
         const full = [...actions, ...next];
         for (const item of full) {
-          const li = document.createElement('li');
+          const li = scopedElement('li');
           li.textContent = item;
           if (status === 'up') li.dataset.kind = 'ok';
           list.append(li);
@@ -683,7 +914,18 @@ const title = 'Статус AI Docs Hub';
         const grid = document.getElementById('components');
         grid.textContent = '';
         const components = payload.components || {};
-        for (const name of ['runtime', 'docs-site', 'repository', 'rag', 'mcp', 'watcher']) {
+        for (const name of [
+          'runtime',
+          'docs-site',
+          'repository',
+          'projects',
+          'generated',
+          'rag',
+          'mkdocs',
+          'docs-readiness',
+          'mcp',
+          'watcher'
+        ]) {
           grid.append(componentCard(name, components[name] || { status: 'warning', message: 'Нет данных.' }));
         }
       }

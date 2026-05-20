@@ -10,6 +10,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from rag.config import HUB_ROOT, is_unbound_example_config, load_project_configs, validate_project_config  # noqa: E402
+from rag.docs_quality import documentation_readiness  # noqa: E402
+from rag.sources import build_source_plan  # noqa: E402
 
 
 PROJECTS_DOCS_DIR = HUB_ROOT / "docs-site" / "src" / "content" / "docs" / "projects"
@@ -43,6 +45,13 @@ def render_sources(sources: list[dict[str, Any]]) -> list[str]:
     return lines or ["- No sources configured."]
 
 
+def render_readiness(readiness: dict[str, Any]) -> list[str]:
+    recommendations = readiness.get("recommendations", [])
+    if not recommendations:
+        return ["- Documentation structure matches the hub recommendations."]
+    return [f"- {recommendation}" for recommendation in recommendations]
+
+
 def render_agent_rules(agent_rules: list[str]) -> list[str]:
     if not agent_rules:
         return ["- No project-specific agent rules configured."]
@@ -53,6 +62,9 @@ def render_project_page(config: Any) -> str:
     issues = validate_project_config(config)
     errors = [issue for issue in issues if issue["level"] == "error"]
     warnings = [issue for issue in issues if issue["level"] == "warning"]
+    recommendations = [issue for issue in issues if issue["level"] == "recommendation"]
+    source_plan = build_source_plan(config)
+    readiness = documentation_readiness(config)
     index = load_index_summary(config.index_path)
 
     status = "configured"
@@ -79,7 +91,9 @@ def render_project_page(config: Any) -> str:
         "",
         f"- Namespace: `{config.namespace}`",
         f"- Root: `{config.root_source}`",
+        f"- Docs backend: `{config.docs_backend}`",
         f"- Status: `{status}`",
+        f"- Documentation coverage: `{readiness.get('coverage', {}).get('percent', 0)}%`",
     ]
 
     if index:
@@ -91,13 +105,24 @@ def render_project_page(config: Any) -> str:
             ]
         )
 
-    lines.extend(["", "## Sources", "", *render_sources(config.sources), ""])
+    if source_plan.mkdocs.detected:
+        lines.extend(
+            [
+                f"- MkDocs config: `{source_plan.mkdocs.config_path}`",
+                f"- MkDocs docs_dir: `{source_plan.mkdocs.docs_dir or '.'}`",
+            ]
+        )
+
+    lines.extend(["", "## Sources", "", *render_sources(source_plan.sources), ""])
 
     if warnings or errors:
         lines.extend(["## Config Notes", ""])
         for issue in [*errors, *warnings]:
             lines.append(f"- `{issue['level']}`: {issue['message']}")
         lines.append("")
+
+    if recommendations:
+        lines.extend(["## Documentation Readiness", "", *render_readiness(readiness), ""])
 
     lines.extend(
         [

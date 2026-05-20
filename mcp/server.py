@@ -23,6 +23,7 @@ from rag.lite import (  # noqa: E402
     search_modules,
 )
 from rag.logging import read_operation_log  # noqa: E402
+from rag.scaffold import scaffold_project_docs  # noqa: E402
 
 
 Json = dict[str, Any]
@@ -41,6 +42,7 @@ class McpServer:
             "index_project": self.tool_index_project,
             "healthcheck": self.tool_healthcheck,
             "lint_project": self.tool_lint_project,
+            "scaffold_project_docs": self.tool_scaffold_project_docs,
             "read_operation_log": self.tool_read_operation_log,
         }
 
@@ -131,6 +133,25 @@ class McpServer:
         detailed = bool(args.get("detailed", False))
         return lint_project(project, detailed=detailed)
 
+    def tool_scaffold_project_docs(self, args: Json) -> Json:
+        project = self.resolve_project(args)
+        confirm = bool(args.get("confirm", False))
+        fill_empty = bool(args.get("fill_empty", True))
+        if not confirm:
+            return {
+                "requires_confirmation": True,
+                "risk": "Scaffolding writes missing documentation files into the connected project root.",
+                "safe_default": "No project files were written because confirm=true was not provided.",
+                "command": f"make scaffold-docs-write PROJECT={project}",
+                "dry_run_command": f"make scaffold-docs PROJECT={project}",
+                "mcp_call": {
+                    "tool": "scaffold_project_docs",
+                    "arguments": {"project": project, "confirm": True, "fill_empty": fill_empty},
+                },
+            }
+        config = get_project_config(project)
+        return scaffold_project_docs(config, write=True, fill_empty=fill_empty)
+
     def tool_read_operation_log(self, args: Json) -> Json:
         project = self.resolve_project(args)
         limit = int(args.get("limit", 20))
@@ -154,7 +175,7 @@ class McpServer:
             },
             {
                 "name": "get_project_profile",
-                "description": "Return project title, sources, include/exclude patterns, agent rules, and index status.",
+                "description": "Return project title, sources, MkDocs adapter state, documentation readiness, agent rules, and index status.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {"project": project_property},
@@ -238,6 +259,19 @@ class McpServer:
                     "properties": {
                         "project": project_property,
                         "detailed": {"type": "boolean", "default": False},
+                    },
+                    "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "scaffold_project_docs",
+                "description": "Create missing recommended project documentation files from templates. Requires confirm=true because it writes into the connected project root.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "confirm": {"type": "boolean", "default": False},
+                        "fill_empty": {"type": "boolean", "default": True},
                     },
                     "required": [] if self.active_project else ["project"],
                 },

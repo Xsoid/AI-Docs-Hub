@@ -22,4 +22,8 @@ Rules:
 make watch PROJECT=example-project
 ```
 
-The watcher polls only configured include paths, applies exclude rules, debounces changes, runs secret scanning, updates the local project index, and regenerates `llms*.txt`.
+The watcher polls configured include paths and, when MkDocs discovery is enabled, the expected MkDocs config path. It applies exclude rules, debounces changes, runs secret scanning, updates the local project index, and regenerates `llms*.txt`.
+
+## Status Diagnostics
+
+`/status/` reports RAG backend, index presence, source file count, indexed document count, chunk count, index path, indexed timestamp, newest source timestamp, and freshness per project. A stale index is an operational warning because search results may lag behind docs-as-code.

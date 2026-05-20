@@ -29,6 +29,26 @@ Regenerate docs-site project entries:
 make project-pages
 ```
 
+Validate project configs and documentation readiness:
+
+```sh
+make validate-configs
+make lint PROJECT=example-project
+```
+
+Plan or create missing recommended project docs:
+
+```sh
+make scaffold-docs PROJECT=example-project
+make scaffold-docs-write PROJECT=example-project
+```
+
+The first command is dry-run. The second command writes missing starter files into the connected project root.
+
+For projects with MkDocs, keep `docs_backend: auto` in `configs/projects/*.yaml` unless you need to force `mkdocs` or `standard`.
+
+The local status page at `/status/` includes a MkDocs component with per-project backend, config detection, adapter state, and `docs_dir`.
+
 Index one project:
 
 ```sh

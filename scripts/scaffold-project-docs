@@ -1,0 +1,69 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from rag.config import get_project_config  # noqa: E402
+from rag.scaffold import scaffold_project_docs  # noqa: E402
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Plan or create missing recommended project documentation files."
+    )
+    parser.add_argument("--project", required=True, help="Project name from configs/projects")
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Create missing docs files in the connected project root.",
+    )
+    parser.add_argument(
+        "--no-fill-empty",
+        action="store_true",
+        help="Do not fill existing empty recommended files.",
+    )
+    parser.add_argument("--json", action="store_true", help="Output JSON only")
+    args = parser.parse_args()
+
+    config = get_project_config(args.project)
+    report = scaffold_project_docs(
+        config,
+        write=args.write,
+        fill_empty=not args.no_fill_empty,
+    )
+
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0
+
+    mode = "write" if args.write else "dry-run"
+    print(f"Project docs scaffold ({mode}): {report['project']}")
+    print(f"Root: {report['root']}")
+    print(f"Docs dir: {report['docs_dir']}")
+    print(f"Coverage: {report.get('coverage_before', {}).get('percent', 0)}% -> {report.get('coverage_after', {}).get('percent', 0)}%")
+    print(f"Actions: {report['actions_count']}")
+    print()
+
+    for action in report["actions"]:
+        status = action.get("status", "planned")
+        action_type = action.get("action")
+        path = action.get("path")
+        reason = action.get("reason", "")
+        print(f"- {status}: {action_type} `{path}`")
+        if reason:
+            print(f"  {reason}")
+
+    if not args.write and report["actions_count"]:
+        print()
+        print(f"Run with --write to create these files: scripts/scaffold-project-docs --project {args.project} --write")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

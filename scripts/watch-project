@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from rag.config import HUB_ROOT, ProjectConfig, get_project_config, load_project_configs, validate_project_config  # noqa: E402
 from rag.lite import build_index, collect_project_files  # noqa: E402
+from rag.mkdocs import ALTERNATE_MKDOCS_CONFIG, DEFAULT_MKDOCS_CONFIG  # noqa: E402
+from rag.security import safe_resolve  # noqa: E402
 
 
 @dataclass
@@ -35,7 +37,25 @@ def snapshot_project(config: ProjectConfig) -> dict[str, tuple[int, int]]:
         rel = path.relative_to(root).as_posix()
         stat = path.stat()
         snapshot[rel] = (stat.st_mtime_ns, stat.st_size)
+    if config.docs_backend != "standard":
+        for rel in _mkdocs_config_watch_paths(config):
+            try:
+                path = safe_resolve(root, rel)
+            except ValueError:
+                continue
+            if path.exists() and path.is_file():
+                stat = path.stat()
+                snapshot[rel] = (stat.st_mtime_ns, stat.st_size)
+            else:
+                snapshot[rel] = (0, 0)
     return snapshot
+
+
+def _mkdocs_config_watch_paths(config: ProjectConfig) -> list[str]:
+    paths = [config.mkdocs_config or DEFAULT_MKDOCS_CONFIG]
+    if paths[0] == DEFAULT_MKDOCS_CONFIG:
+        paths.append(ALTERNATE_MKDOCS_CONFIG)
+    return paths
 
 
 def snapshot_key(snapshot: dict[str, tuple[int, int]]) -> tuple[tuple[str, int, int], ...]:
