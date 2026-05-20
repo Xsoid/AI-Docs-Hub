@@ -11,6 +11,5 @@ Rules:
 - logs go to stderr;
 - tools are project-scoped;
 - risky or long operations must be described explicitly;
-- global Codex config is never changed automatically;
+- global Codex config may be edited for requested Codex/MCP setup; edits must stay scoped and be reported;
 - project files are read by default and are not edited by the hub.
-

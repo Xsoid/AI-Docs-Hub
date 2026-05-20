@@ -125,7 +125,7 @@ python3.11 scripts/hub-dev --host 127.0.0.1 --port 4321
 make hub-install
 ```
 
-`make hub-install` только создает plist. Оно не меняет глобальный Codex config.
+`make hub-install` только создает plist. MCP-подключения для Codex настраиваются отдельной точечной правкой глобального Codex config.
 
 ### `make hub-stop`
 

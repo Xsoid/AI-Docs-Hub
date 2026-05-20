@@ -63,7 +63,7 @@ Watcher работает в foreground-режиме через `make watch`, `ma
 
 На macOS optional persistent-режим строится через `launchd`: `scripts/hub-launchd` устанавливает user LaunchAgent `local.ai-docs-hub.runtime`, который запускает тот же `scripts/hub-dev`.
 
-Persistent runtime не меняет глобальный Codex config.
+Persistent runtime отделен от глобального Codex config; MCP-подключения настраиваются отдельной точечной правкой `~/.codex/config.toml`.
 
 ## Source Of Truth
 

@@ -48,4 +48,4 @@ make mcp-test
 
 Docker is not a default runtime dependency. The hub does not require Docker Compose, RAGFlow, cloud vector databases, or external AI APIs for normal operation.
 
-Global Codex config is not changed automatically. Use `codex-config.example.toml` or `project-codex-config.example.toml` as templates and apply them explicitly.
+Global Codex config can be configured for MCP access. Use `codex-config.example.toml` or `project-codex-config.example.toml` as templates and keep applied edits scoped.
