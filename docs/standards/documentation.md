@@ -22,6 +22,23 @@
 - stack dependencies;
 - operational workflows.
 
+## Каталог Стандартов
+
+В хабе сейчас используются такие группы стандартов:
+
+- documentation standard: docs-as-code ownership, структура проектной документации, обязанность обновлять документацию хаба, change notes, generated files, path portability и secrets hygiene;
+- RAG policy: project namespaces, local indexing, secret-safe source filtering, search output metadata, watch mode и RAG freshness diagnostics;
+- MCP policy: stdio JSON-RPC behavior, project scoping, stderr logging, подтверждение project-file writes и scoped Codex config edits;
+- llms.txt policy: generated LLM context files, input sources и запрет ручного редактирования;
+- runtime standard: local Python 3.11, Node.js 22/npm 10, optional macOS `launchd`, foreground `hub-dev`, status endpoint и local storage;
+- project config standard: portable roots, isolated namespaces, `sources`, `include`, `exclude`, `agent_rules`, `docs_backend` и `mkdocs_config`;
+- source discovery standard: ручные include/exclude rules объединяются с безопасным MkDocs structural discovery, если он включен;
+- status diagnostics standard: `/status/` должен показывать global health и project-scoped diagnostics для projects, generated context, RAG, MkDocs и documentation readiness;
+- scaffold standard: documentation scaffold по умолчанию dry-run, пишет только после явного подтверждения и не перезаписывает non-empty project files;
+- security standard: secret-looking files и content должны исключаться из indexing и generated context.
+
+Если новое поведение хаба не ложится в одну из этих групп, нужно добавить или расширить standard section до того, как считать поведение установленным.
+
 ## Язык
 
 Основной язык документации в `/docs` - русский.
@@ -100,6 +117,19 @@ make scaffold-docs-write PROJECT=project-name
 - пустые recommended-файлы можно заполнить шаблоном, если пользователь не отключил это поведение;
 - шаблоны не должны содержать секреты или host-specific значения.
 
+## Project Config
+
+Project configs хранятся в `configs/projects/*.yaml` и должны сохранять project context isolation:
+
+- `project` и `namespace` задают project scope;
+- `root` должен быть переносимым, например `${AI_DOCS_PROJECTS_ROOT}/project-name`;
+- `sources`, `include` и `exclude` определяют readable surface;
+- `agent_rules` передают project-specific instructions в profiles;
+- `docs_backend` должен быть `auto`, `standard` или `mkdocs`;
+- `mkdocs_config` должен быть относительным к project root.
+
+Placeholder sample configs допустимы, но реальные project configs должны резолвиться в существующую директорию.
+
 ## MkDocs
 
 MkDocs поддерживается как read-only adapter для source discovery:
@@ -109,6 +139,18 @@ MkDocs поддерживается как read-only adapter для source disco
 - `docs_backend: standard` игнорирует MkDocs.
 
 Хаб может читать `site_name`, `docs_dir`, `site_dir`, `nav`, `exclude_docs`, `draft_docs`, `not_in_nav` и простое `INHERIT` для определения источников. Хаб не выполняет `plugins`, `hooks`, Python code или Markdown extensions из MkDocs-конфига.
+
+## Runtime И Status
+
+Runtime хаба local-first:
+
+- Python 3.11 запускает scripts, Lite RAG, MCP, healthcheck, indexing, scaffold, watcher и generated context workflows;
+- Node.js 22/npm 10 запускают Astro Starlight docs-site;
+- `scripts/hub-dev` запускает docs-site и watcher в foreground;
+- macOS `launchd` может запускать тот же supervisor persistently;
+- `/status/` показывает global health и project-scoped diagnostics там, где это имеет смысл.
+
+Status diagnostics должны отделять operational failures от recommendations. Documentation readiness gaps являются recommendations; stale или missing RAG indexes и missing generated artifacts являются operational warnings.
 
 ## Change Notes
 
@@ -139,6 +181,9 @@ Change note должен содержать:
 - `docs-site/public/llms.txt`;
 - `docs-site/public/llms-full.txt`;
 - `docs-site/public/llms-small.txt`.
+- `docs-site/src/content/docs/projects/*`;
+- `docs-site/dist/`;
+- runtime heartbeat и log files в `storage/runtime` и `storage/logs`.
 
 ## Абсолютные Пути
 
