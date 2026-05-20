@@ -1,7 +1,4 @@
----
-title: RAG Policy
-description: Local indexing, namespace isolation and secret-safety rules.
----
+# RAG Policy
 
 Lite RAG в AI Docs Hub является локальным derived index поверх docs-as-code.
 

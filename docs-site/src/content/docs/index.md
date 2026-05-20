@@ -3,15 +3,45 @@ title: AI Docs Hub
 description: Local documentation hub for docs-as-code, llms.txt, RAG, and MCP access.
 ---
 
-AI Docs Hub is a local infrastructure hub. It reads documentation from connected project roots, builds derived indexes, generates LLM context files, and exposes project knowledge through MCP tools.
+AI Docs Hub - локальный инфраструктурный хаб для проектной документации, generated-контекста, Lite RAG-индексов и MCP-доступа.
 
-The project documentation source of truth stays inside each project. The hub stores configuration, generated artifacts, indexes, templates, and ecosystem-level documentation.
+Главное правило: документация конкретного проекта остается внутри этого проекта. Хаб хранит конфиги подключения, локальные индексы, generated-файлы, шаблоны, runtime-инструменты и надпроектную документацию.
 
-## Layers
+## Что Делает Хаб
 
-- Docs-as-code layer: project documentation remains in the project repository.
-- llms.txt layer: generated machine-readable Markdown context files.
-- Lite RAG layer: local index in `storage/index`.
-- MCP bridge layer: stdio tools for Codex and other local agents.
-- Agent rules layer: namespace and safety policies.
+- Читает разрешенные Markdown/source-файлы из `configs/projects/*.yaml`.
+- Строит project-scoped Lite JSON/BM25 индексы в `storage/index`.
+- Генерирует `llms.txt`, `llms-full.txt` и `llms-small.txt`.
+- Генерирует обзорные страницы подключенных проектов для docs-site.
+- Отдает project-scoped MCP tools для Codex и других локальных агентов.
+- Показывает live runtime/status dashboard на `/status/`.
+- Проверяет documentation readiness и может dry-run scaffold недостающих проектных docs.
 
+## Что Не Делает Хаб
+
+- Не становится source of truth для документации подключенных проектов.
+- Не смешивает namespace разных проектов без явного запроса.
+- Не индексирует `.env`, ключи, токены, cookies, sessions, dumps или secret-looking files.
+- Не редактирует подключенные проекты по умолчанию.
+- Не требует Docker, RAGFlow, cloud vector DB или внешних LLM API для штатной работы.
+
+## Быстрый Старт
+
+```sh
+make setup
+make hub-dev
+```
+
+Открыть сайт:
+
+```text
+http://localhost:4321/
+```
+
+Проверить live-состояние:
+
+```sh
+make hub-status
+```
+
+Первая точка для чтения - [Обзор](/hub/overview/), затем [Архитектура](/hub/architecture/) и [Справочник команд](/hub/command-reference/).

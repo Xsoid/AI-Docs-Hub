@@ -1,7 +1,4 @@
----
-title: llms.txt
-description: Policy for generated LLM context files.
----
+# llms.txt Policy
 
 `llms.txt`, `llms-full.txt` и `llms-small.txt` являются generated artifacts.
 

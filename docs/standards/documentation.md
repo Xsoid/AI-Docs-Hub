@@ -6,7 +6,11 @@
 
 Каждое значимое изменение хаба должно обновлять `/docs`.
 
-Это не рекомендация на потом, а часть реализации. Нельзя завершать изменение хаба, если из-за него появилась новая команда, зависимость, статусное поле, runtime workflow, MCP/RAG behavior или architectural concept, но source-документация хаба осталась старой.
+Это строгое правило, которое нельзя игнорировать. Это не рекомендация на потом, а часть реализации.
+
+Нельзя завершать изменение хаба, если из-за него появилась новая команда, зависимость, статусное поле, runtime workflow, MCP/RAG behavior, docs-site behavior, generated context behavior, project config behavior, agent workflow или architectural concept, но source-документация хаба и matching docs-site content остались старыми.
+
+Если документацию нельзя обновить в том же change, реализация считается незавершенной и это нужно явно сообщить.
 
 Это включает изменения в:
 
@@ -16,6 +20,8 @@
 - правилах индексации;
 - generated context files;
 - runtime commands;
+- commands;
+- status fields;
 - launch или supervision behavior;
 - project config behavior;
 - agent workflow;
@@ -27,15 +33,16 @@
 В хабе сейчас используются такие группы стандартов:
 
 - documentation standard: docs-as-code ownership, структура проектной документации, обязанность обновлять документацию хаба, change notes, generated files, path portability и secrets hygiene;
-- RAG policy: project namespaces, local indexing, secret-safe source filtering, search output metadata, watch mode и RAG freshness diagnostics;
-- MCP policy: stdio JSON-RPC behavior, project scoping, stderr logging, подтверждение project-file writes и scoped Codex config edits;
-- llms.txt policy: generated LLM context files, input sources и запрет ручного редактирования;
-- runtime standard: local Python 3.11, Node.js 22/npm 10, optional macOS `launchd`, foreground `hub-dev`, status endpoint и local storage;
-- project config standard: portable roots, isolated namespaces, `sources`, `include`, `exclude`, `agent_rules`, `docs_backend` и `mkdocs_config`;
-- source discovery standard: ручные include/exclude rules объединяются с безопасным MkDocs structural discovery, если он включен;
-- status diagnostics standard: `/status/` должен показывать global health и project-scoped diagnostics для projects, generated context, RAG, MkDocs и documentation readiness;
-- scaffold standard: documentation scaffold по умолчанию dry-run, пишет только после явного подтверждения и не перезаписывает non-empty project files;
-- security standard: secret-looking files и content должны исключаться из indexing и generated context.
+- [RAG policy](rag-policy.md): project namespaces, local indexing, secret-safe source filtering, search output metadata, watch mode и RAG freshness diagnostics;
+- [MCP policy](mcp-policy.md): stdio JSON-RPC behavior, project scoping, stderr logging, подтверждение project-file writes и scoped Codex config edits;
+- [llms.txt policy](llms-txt.md): generated LLM context files, input sources и запрет ручного редактирования;
+- [runtime status standard](runtime-status.md): local Python 3.11, Node.js 22/npm 10, optional macOS `launchd`, foreground `hub-dev`, status endpoint и local storage;
+- [project config standard](project-config.md): portable roots, isolated namespaces, `sources`, `include`, `exclude`, `agent_rules`, `docs_backend` и `mkdocs_config`;
+- [source discovery standard](source-discovery.md): ручные include/exclude rules объединяются с безопасным MkDocs structural discovery, если он включен;
+- [status diagnostics standard](status-diagnostics.md): `/status/` должен показывать global health и project-scoped diagnostics для projects, generated context, RAG, MkDocs и documentation readiness;
+- [scaffold standard](scaffold.md): documentation scaffold по умолчанию dry-run, пишет только после явного подтверждения и не перезаписывает non-empty project files;
+- [generated artifacts standard](generated-artifacts.md): derived files не редактируются вручную как source documentation;
+- [security standard](security.md): secret-looking files и content должны исключаться из indexing и generated context.
 
 Если новое поведение хаба не ложится в одну из этих групп, нужно добавить или расширить standard section до того, как считать поведение установленным.
 

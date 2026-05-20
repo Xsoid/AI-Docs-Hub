@@ -31,6 +31,8 @@ make hub-start
 http://localhost:4321/
 ```
 
+Штатный docs-site слушает HTTP. URL `https://localhost:4321/` не является ожидаемым endpoint.
+
 Docs-site активен только пока работает Astro dev process. Если терминал или родительская сессия завершается, сайт может остановиться.
 
 `make hub-dev` запускает docs-site в foreground-режиме, префиксует его логи как `[docs]` и останавливает дочерние процессы при `Ctrl+C`.
@@ -162,6 +164,7 @@ Connection refused
 - `make docs-dev` не запущен;
 - терминал или сессия, владевшая Astro, завершилась;
 - Astro упал до того, как начал слушать порт.
+- открыт `https://localhost:4321/` вместо `http://localhost:4321/`.
 
 Восстановление через общий foreground runtime:
 

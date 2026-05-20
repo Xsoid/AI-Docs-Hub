@@ -3,11 +3,11 @@ title: Autonomous Setup
 description: Local runtime dependencies for running AI Docs Hub without Docker.
 ---
 
-AI Docs Hub is designed to run as a local autonomous toolchain. It does not require Docker for docs, Lite RAG, `llms*.txt`, MCP, indexing, linting, or watch mode.
+AI Docs Hub работает как локальный автономный toolchain. Для docs-site, Lite RAG, `llms*.txt`, MCP, indexing, lint, scaffold и watch mode Docker не нужен.
 
-## Required Runtime
+## Требования
 
-Install these tools on the host machine:
+На host machine должны быть доступны:
 
 - Python 3.11 available as `python3.11`;
 - Node.js 22 LTS available as `node`;
@@ -22,11 +22,11 @@ brew install python@3.11 node@22
 brew link --force --overwrite node@22
 ```
 
-`python3` on macOS can point to an older system Python. Hub commands intentionally use `python3.11`.
+`python3` на macOS может указывать на старый system Python. Команды хаба намеренно используют `python3.11`.
 
-## Local Setup
+## Локальная Настройка
 
-From the hub root:
+Из корня хаба:
 
 ```sh
 make setup
@@ -35,17 +35,25 @@ make llms
 make mcp-test
 ```
 
-`make setup` creates `.venv`, installs docs-site npm dependencies, and validates project configs. Python dependencies are currently standard-library only.
+`make setup` создает `.venv`, устанавливает docs-site npm dependencies и валидирует project configs. Python dependencies сейчас standard-library only.
 
-## Runtime Roles
+## Роли Runtime
 
 - Python runs Lite RAG, MCP, indexing, lint, healthcheck, `llms*.txt`, and watch mode.
 - Node/npm run the Astro Starlight docs site.
 - `storage/` keeps local indexes, generated files, and operation logs.
 - `configs/projects/*.yaml` connects external project documentation through resolvable portable roots, such as `${AI_DOCS_PROJECTS_ROOT}/project-name`.
 
-## Not Required
+## Что Не Нужно
 
 Docker is not a default runtime dependency. The hub does not require Docker Compose, RAGFlow, cloud vector databases, or external AI APIs for normal operation.
 
 Global Codex config can be configured for MCP access. Use `codex-config.example.toml` or `project-codex-config.example.toml` as templates and keep applied edits scoped.
+
+## Проверка После Setup
+
+```sh
+make hub-status
+```
+
+`healthcheck` проверяет repository prerequisites, но не доказывает, что docs-site прямо сейчас слушает порт. Для live runtime используйте `hub-status` или `/status/`.

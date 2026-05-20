@@ -15,20 +15,37 @@ export default defineConfig({
           label: 'Hub',
           items: [
             { label: 'Статус', link: '/status/' },
-            { label: 'Overview', slug: 'hub/overview' },
-            { label: 'Architecture', slug: 'hub/architecture' },
-            { label: 'Autonomous Setup', slug: 'hub/autonomous-setup' },
-            { label: 'Usage', slug: 'hub/usage' },
-            { label: 'Agent Rules', slug: 'hub/agent-rules' }
+            { label: 'Обзор', slug: 'hub/overview' },
+            { label: 'Архитектура', slug: 'hub/architecture' },
+            { label: 'Автономная настройка', slug: 'hub/autonomous-setup' },
+            { label: 'Использование', slug: 'hub/usage' },
+            { label: 'Справочник команд', slug: 'hub/command-reference' },
+            { label: 'Правила агентов', slug: 'hub/agent-rules' }
+          ]
+        },
+        {
+          label: 'Operations',
+          items: [
+            { label: 'Локальный runtime', slug: 'hub/local-runtime' },
+            { label: 'Наблюдаемость runtime', slug: 'hub/runtime-observability' },
+            { label: 'GUI dashboard', slug: 'hub/gui-dashboard' },
+            { label: 'macOS menu bar', slug: 'hub/macos-menu-bar' }
           ]
         },
         {
           label: 'Standards',
           items: [
             { label: 'Documentation', slug: 'standards/documentation' },
+            { label: 'Project Config', slug: 'standards/project-config' },
+            { label: 'Source Discovery', slug: 'standards/source-discovery' },
             { label: 'llms.txt', slug: 'standards/llms-txt' },
             { label: 'RAG Policy', slug: 'standards/rag-policy' },
-            { label: 'MCP Policy', slug: 'standards/mcp-policy' }
+            { label: 'MCP Policy', slug: 'standards/mcp-policy' },
+            { label: 'Runtime Status', slug: 'standards/runtime-status' },
+            { label: 'Status Diagnostics', slug: 'standards/status-diagnostics' },
+            { label: 'Scaffold', slug: 'standards/scaffold' },
+            { label: 'Generated Artifacts', slug: 'standards/generated-artifacts' },
+            { label: 'Security', slug: 'standards/security' }
           ]
         },
         {

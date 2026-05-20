@@ -64,4 +64,6 @@ docs/
 - GUI dashboard: локальная страница `http://localhost:4321/status/` для понятного просмотра состояния хаба.
 - macOS menu bar: иконка в верхнем системном баре, запускается через `make hub-menu-start`.
 
-См. [Локальный Runtime](operations/local-runtime.md) и [Наблюдаемость Runtime](operations/runtime-observability.md).
+Штатный docs-site слушает `http://localhost:4321/`; `https://localhost:4321/` не является default endpoint.
+
+См. [Локальный Runtime](operations/local-runtime.md), [Наблюдаемость Runtime](operations/runtime-observability.md) и [Справочник Команд](operations/command-reference.md).

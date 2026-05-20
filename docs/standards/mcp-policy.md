@@ -1,7 +1,4 @@
----
-title: MCP Policy
-description: MCP stdio bridge behavior, project scoping and write confirmation rules.
----
+# MCP Policy
 
 MCP bridge работает как локальный stdio JSON-RPC server.
 

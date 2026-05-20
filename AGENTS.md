@@ -2,7 +2,15 @@
 
 This repository is the local AI Docs Hub. It stores infrastructure, generated artifacts, templates, indexes, and ecosystem-level documentation. Project-specific documentation must stay inside each connected project.
 
-Hub documentation is part of the implementation. When a change affects hub architecture, RAG, MCP, docs-site, indexing, generated context, project config behavior, runtime, operations, or agent workflow, update the source documentation in `docs/` and the matching docs-site content in `docs-site/src/content/docs/` in the same change. Add a change note in `docs/changes/` for behavior that affects usage, operations, debugging, or extension.
+## Non-Negotiable Documentation Rule
+
+Hub documentation is part of the implementation. This rule must never be ignored.
+
+Any AI Docs Hub change that affects architecture, RAG, MCP, docs-site, indexing, generated context, project config behavior, runtime, operations, stack dependencies, commands, status fields, or agent workflow must update the source documentation in `docs/` and the matching docs-site content in `docs-site/src/content/docs/` in the same change.
+
+If the behavior affects usage, operations, debugging, or extension, the same change must also add a change note in `docs/changes/`.
+
+Do not finish a hub change by leaving documentation as a follow-up. If the documentation cannot be updated in the same change, stop and report that the implementation is incomplete.
 
 Before changing RAG, MCP, docs-site, indexing, or generated context behavior:
 

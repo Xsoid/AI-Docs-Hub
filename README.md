@@ -287,6 +287,8 @@ make docs-dev
 http://localhost:4321/
 ```
 
+Docs-site по умолчанию слушает HTTP. `https://localhost:4321/` не является штатным endpoint.
+
 Собрать статический сайт:
 
 ```sh
@@ -419,9 +421,10 @@ MCP tools:
 - `index_project`
 - `healthcheck`
 - `lint_project` — проверка структурного качества (broken links, orphan pages, empty documents)
+- `scaffold_project_docs` — dry-run или явный scaffold starter-файлов проектной документации
 - `read_operation_log` — чтение лога операций индексирования
 
-`index_project` через MCP по умолчанию не запускает индексацию. Он сначала возвращает описание операции и требует `confirm=true`.
+`index_project` через MCP по умолчанию не запускает индексацию. `scaffold_project_docs` по умолчанию не пишет project files. Оба tool-а сначала возвращают описание операции и требуют `confirm=true` для write-действия.
 
 ## 13. Как не утечь секретами
 
