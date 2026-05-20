@@ -12,6 +12,11 @@ struct HubStatus: Decodable {
     let components: [String: HubComponent]?
 }
 
+enum HubStatusRead {
+    case success(HubStatus)
+    case failure(String)
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
@@ -20,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private var isRefreshing = false
     private let statusURL = URL(string: "http://localhost:4321/status/")!
+    private let statusAPIURL = URL(string: "http://localhost:4321/api/hub-status.json")!
     private let docsURL = URL(string: "http://localhost:4321/")!
     private lazy var hubRoot: String = {
         if let value = ProcessInfo.processInfo.environment["AI_DOCS_HUB_ROOT"], !value.isEmpty {
@@ -113,46 +119,185 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         isRefreshing = true
-        readStatus { [weak self] status in
+        readStatus { [weak self] result in
             DispatchQueue.main.async {
                 self?.isRefreshing = false
-                self?.apply(status: status)
+                self?.apply(result: result)
             }
         }
     }
 
-    private func readStatus(completion: @escaping (HubStatus?) -> Void) {
+    private func readStatus(completion: @escaping (HubStatusRead) -> Void) {
         DispatchQueue.global(qos: .utility).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: self.hubRoot + "/scripts/hub-status")
-            process.currentDirectoryURL = URL(fileURLWithPath: self.hubRoot)
-            process.arguments = ["--json"]
-
-            let output = Pipe()
-            let error = Pipe()
-            process.standardOutput = output
-            process.standardError = error
-
-            do {
-                try process.run()
-                process.waitUntilExit()
-                let data = output.fileHandleForReading.readDataToEndOfFile()
-                let status = try JSONDecoder().decode(HubStatus.self, from: data)
-                completion(status)
-            } catch {
-                completion(nil)
+            let localResult = self.readStatusFromScript()
+            if case .success = localResult {
+                completion(localResult)
+                return
+            }
+            self.readStatusFromAPI { apiResult in
+                switch apiResult {
+                case .success:
+                    completion(apiResult)
+                case .failure(let apiError):
+                    if case .failure(let localError) = localResult {
+                        completion(.failure("\(localError); API: \(apiError)"))
+                    } else {
+                        completion(apiResult)
+                    }
+                }
             }
         }
     }
 
-    private func apply(status: HubStatus?) {
-        guard let status else {
+    private func readStatusFromScript() -> HubStatusRead {
+        guard let python = findPython() else {
+            return .failure("python3.11 не найден")
+        }
+
+        let script = hubRoot + "/scripts/hub-status"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: python)
+        process.currentDirectoryURL = URL(fileURLWithPath: hubRoot)
+        process.arguments = [script, "--json"]
+        process.environment = processEnvironment()
+
+        let output = Pipe()
+        let error = Pipe()
+        process.standardOutput = output
+        process.standardError = error
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            let errorData = error.fileHandleForReading.readDataToEndOfFile()
+            if let status = decodeStatus(data) {
+                return .success(status)
+            }
+            let detail = pipeText(errorData).isEmpty ? pipeText(data) : pipeText(errorData)
+            return .failure("hub-status не вернул JSON (\(process.terminationStatus)): \(shortMessage(detail))")
+        } catch {
+            return .failure("hub-status не запустился: \(error.localizedDescription)")
+        }
+    }
+
+    private func readStatusFromAPI(completion: @escaping (HubStatusRead) -> Void) {
+        var request = URLRequest(
+            url: statusAPIURL,
+            cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
+            timeoutInterval: 4
+        )
+        request.setValue("no-cache", forHTTPHeaderField: "cache-control")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error {
+                completion(.failure(error.localizedDescription))
+                return
+            }
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                completion(.failure("HTTP \(http.statusCode)"))
+                return
+            }
+            guard let data, let status = self.decodeStatus(data) else {
+                completion(.failure("API не вернул JSON"))
+                return
+            }
+            completion(.success(status))
+        }.resume()
+    }
+
+    private func findPython() -> String? {
+        let fileManager = FileManager.default
+        if let override = ProcessInfo.processInfo.environment["AI_DOCS_HUB_PYTHON"],
+           !override.isEmpty,
+           fileManager.isExecutableFile(atPath: override) {
+            return override
+        }
+
+        for directory in mergedSearchPath().split(separator: ":") {
+            let candidate = URL(fileURLWithPath: String(directory))
+                .appendingPathComponent("python3.11")
+                .path
+            if fileManager.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+
+        for candidate in [
+            "/opt/homebrew/opt/python@3.11/bin/python3.11",
+            "/opt/homebrew/bin/python3.11",
+            "/usr/local/opt/python@3.11/bin/python3.11",
+            "/usr/local/bin/python3.11",
+            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11"
+        ] where fileManager.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+
+        return nil
+    }
+
+    private func processEnvironment() -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = mergedSearchPath()
+        environment["PYTHONUNBUFFERED"] = "1"
+        environment["ASTRO_TELEMETRY_DISABLED"] = "1"
+        environment["npm_config_cache"] = hubRoot + "/.npm-cache"
+        return environment
+    }
+
+    private func mergedSearchPath() -> String {
+        var parts = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map(String.init)
+        for candidate in [
+            "/opt/homebrew/opt/python@3.11/bin",
+            "/opt/homebrew/bin",
+            "/usr/local/opt/python@3.11/bin",
+            "/usr/local/bin",
+            "/Library/Frameworks/Python.framework/Versions/3.11/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin"
+        ] where !parts.contains(candidate) {
+            parts.append(candidate)
+        }
+        return parts.joined(separator: ":")
+    }
+
+    private func decodeStatus(_ data: Data) -> HubStatus? {
+        try? JSONDecoder().decode(HubStatus.self, from: data)
+    }
+
+    private func pipeText(_ data: Data) -> String {
+        String(data: data, encoding: .utf8) ?? ""
+    }
+
+    private func shortMessage(_ value: String) -> String {
+        let clean = value
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.isEmpty {
+            return "пустой вывод"
+        }
+        if clean.count <= 160 {
+            return clean
+        }
+        return String(clean.prefix(157)) + "..."
+    }
+
+    private func apply(result: HubStatusRead) {
+        switch result {
+        case .success(let status):
+            apply(status: status)
+        case .failure(let error):
             configureButton(title: "xAI X")
             stateItem.title = "AI Docs Hub: не удалось проверить"
-            updatedItem.title = "Откройте статус или проверьте make hub-status"
-            return
+            updatedItem.title = shortMessage(error)
         }
+    }
 
+    private func apply(status: HubStatus) {
         switch status.status {
         case "up":
             configureButton(title: "xAI")
@@ -169,6 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let runtime = status.components?["runtime"]?.message ?? "runtime не найден"
         updatedItem.title = "Проверено: \(checked) | \(runtime)"
     }
+
 }
 
 let app = NSApplication.shared

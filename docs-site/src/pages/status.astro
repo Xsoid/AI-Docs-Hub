@@ -128,6 +128,11 @@ const title = 'Статус AI Docs Hub';
         background: #fbfbfa;
       }
 
+      .button:disabled {
+        opacity: 0.68;
+        cursor: progress;
+      }
+
       .hero {
         display: grid;
         grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
@@ -683,24 +688,44 @@ const title = 'Статус AI Docs Hub';
         }
       }
 
+      const refreshButton = document.getElementById('refresh');
+      const apiPath = document.getElementById('apiPath');
+      const apiLabel = 'Источник: /api/hub-status.json';
+      let refreshInFlight = false;
+
+      function setRefreshButton(active) {
+        refreshButton.disabled = active;
+        refreshButton.textContent = active ? 'Обновляю...' : 'Обновить';
+        refreshButton.setAttribute('aria-busy', active ? 'true' : 'false');
+      }
+
       async function refresh() {
+        if (refreshInFlight) return;
+        refreshInFlight = true;
+        setRefreshButton(true);
+        apiPath.textContent = 'Обновляю статус...';
         try {
-          const response = await fetch('/api/hub-status.json', { cache: 'no-store' });
+          const response = await fetch(`/api/hub-status.json?ts=${Date.now()}`, { cache: 'no-store' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const payload = await response.json();
           if (payload.error) throw new Error(payload.error);
           render(payload);
+          apiPath.textContent = `${apiLabel}, получено ${formatTime(new Date().toISOString())}`;
         } catch (error) {
           document.body.dataset.error = 'true';
           setSummary('down');
           document.getElementById('errorBox').textContent =
             error instanceof Error ? error.message : 'Не удалось получить статус.';
+          apiPath.textContent = `${apiLabel}, ошибка ${formatTime(new Date().toISOString())}`;
+        } finally {
+          refreshInFlight = false;
+          setRefreshButton(false);
         }
       }
 
-      document.getElementById('refresh').addEventListener('click', refresh);
+      refreshButton.addEventListener('click', refresh);
       refresh();
       window.setInterval(refresh, 5000);
     </script>
   </body>
 </html>
-
