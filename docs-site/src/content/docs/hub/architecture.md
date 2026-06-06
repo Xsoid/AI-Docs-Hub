@@ -9,15 +9,15 @@ AI Docs Hub - локальный инфраструктурный репозит
 
 ## Карта Стеков
 
-- Python 3.11: operational scripts, project config loading, Lite RAG, MCP stdio server, healthcheck, status API source data, watcher, documentation scaffold, secret scanning, generated project pages и генерация `llms*.txt`.
+- Python 3.11: operational scripts, project config loading, Lite RAG, MCP stdio server, healthcheck, status API source data, allowlisted fix actions, watcher, documentation scaffold, secret scanning, generated project pages и генерация `llms*.txt`.
 - Node.js 22 LTS и npm 10: runtime и build pipeline для docs-site.
-- Astro 6 и Starlight: документационный сайт, `/status/` page shell, навигация, search index build и rendering из `docs-site/src/content/docs/`.
+- Astro 6 и Starlight: документационный сайт, `/status/` page shell, status/fix API endpoints, навигация, search index build и rendering из `docs-site/src/content/docs/`.
 - Markdown docs-as-code: source-документация хаба в `docs/`, source-страницы сайта в `docs-site/src/content/docs/` и документация подключенных проектов внутри самих проектов.
 - YAML project config: `configs/projects/*.yaml` задают project root, namespace, source include/exclude rules, agent rules и docs backend mode.
 - MkDocs adapter: read-only structural discovery для проектов с `mkdocs.yml` или `mkdocs.yaml`.
 - Lite JSON/BM25 RAG: локальная индексация и поиск по разрешенной документации проектов, хранение в `storage/index`.
 - MCP stdio bridge: `mcp/server.py` отдает project-scoped tools для Codex и других MCP clients.
-- Local runtime: `scripts/hub-dev` супервизирует docs-site и watcher в foreground.
+- Local runtime: `scripts/hub-dev` супервизирует docs-site, watcher и local fix action server в foreground.
 - macOS `launchd`: optional persistent supervisor для того же `hub-dev`.
 - macOS menu bar app: optional Swift/AppKit wrapper для быстрого доступа к status/dashboard.
 - Generated artifacts: `storage/generated`, `docs-site/public/llms*.txt`, `docs-site/src/content/docs/projects/*`, runtime heartbeats, logs и indexes.
@@ -105,6 +105,14 @@ http://localhost:4321/status/
 ```
 
 Важно: штатный docs-site слушает HTTP, а не HTTPS. URL `https://localhost:4321/` не является ожидаемым endpoint.
+
+## Fix Actions
+
+`scripts/fix-server` обслуживает локальные dashboard кнопки на `127.0.0.1:4322` и вызывает `scripts/apply-fix`.
+
+`scripts/apply-fix` - allowlisted executor для operational fixes, которые запускаются из dashboard или CLI. Он не принимает произвольные shell-команды.
+
+Project-scoped fix actions, например `rag.reindex`, используют обычные project configs, namespace isolation, exclude rules и secret scan. Runtime fix actions ограничены управлением описанным `launchd` supervisor.
 
 ## Source Of Truth
 

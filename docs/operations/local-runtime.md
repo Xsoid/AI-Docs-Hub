@@ -39,11 +39,19 @@ Docs-site активен только пока работает Astro dev proces
 
 `make hub-start` запускает тот же `hub-dev`, но через user LaunchAgent `local.ai-docs-hub.runtime`.
 
+`hub-dev` также запускает local fix action server:
+
+```text
+http://127.0.0.1:4322/
+```
+
+Этот server принимает только allowlisted dashboard fix actions и останавливается вместе с runtime.
+
 Ручная проверка:
 
 ```sh
 lsof -nP -iTCP:4321 -sTCP:LISTEN
-curl -sS -I --max-time 3 http://localhost:4321/
+curl -sS -I --max-time 3 http://localhost:4321/status/
 ```
 
 Ожидаемый HTTP-результат:
@@ -123,7 +131,7 @@ python3.11 scripts/hub-status
 Команда проверяет:
 
 - runtime: foreground/manual runtime или `launchd` service;
-- docs-site: HTTP-ответ от `http://localhost:4321/`;
+- docs-site: HTTP-ответ от lightweight status path `http://localhost:4321/status/`;
 - repository: результат `healthcheck`;
 - rag: наличие Lite RAG backend и количество индексов;
 - mcp: старт stdio MCP server, `tools/list` и MCP healthcheck;
@@ -141,14 +149,14 @@ python3.11 scripts/hub-status
 make healthcheck
 make mcp-test
 lsof -nP -iTCP:4321 -sTCP:LISTEN
-curl -sS -I --max-time 3 http://localhost:4321/
+curl -sS -I --max-time 3 http://localhost:4321/status/
 ```
 
 Интерпретация:
 
 - healthcheck ok: репозиторий и prerequisites пригодны к работе;
 - MCP test ok: MCP server может стартовать и отдавать tools;
-- порт 4321 слушается и HTTP 200: docs-site сейчас поднят;
+- порт 4321 слушается и HTTP 200 на `/status/`: docs-site сейчас поднят;
 - порт 4321 отсутствует: docs-site лежит, даже если healthcheck ok.
 
 ## Частая Авария: `localhost:4321` Недоступен
@@ -191,7 +199,7 @@ make docs-dev
 Затем проверить:
 
 ```sh
-curl -sS -I --max-time 3 http://localhost:4321/
+curl -sS -I --max-time 3 http://localhost:4321/status/
 ```
 
 ## Runtime State
@@ -203,6 +211,10 @@ storage/runtime/hub-dev.status.json
 ```
 
 Этот файл не является source-документацией и не коммитится. Он нужен для `hub-status`, чтобы отличать активный watcher от остановленного или устаревшего runtime.
+
+`hub-dev` хранит публичный docs URL и отдельный `health_url`, но сам supervisor использует TCP-readiness. HTTP-проверка `http://localhost:4321/status/` остается в `hub-status`/dashboard, чтобы отличать процесс, который слушает порт, от полноценно отвечающего docs-site.
+
+В `children` также появляется `fix-server`, если local fix action server запущен.
 
 ## Persistent Runtime
 

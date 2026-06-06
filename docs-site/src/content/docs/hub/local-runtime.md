@@ -34,11 +34,19 @@ http://localhost:4321/
 
 Штатный docs-site слушает HTTP. URL `https://localhost:4321/` не является ожидаемым endpoint.
 
+`hub-dev` также запускает local fix action server:
+
+```text
+http://127.0.0.1:4322/
+```
+
+Этот server принимает только allowlisted dashboard fix actions и останавливается вместе с runtime.
+
 Ручная проверка:
 
 ```sh
 lsof -nP -iTCP:4321 -sTCP:LISTEN
-curl -sS -I --max-time 3 http://localhost:4321/
+curl -sS -I --max-time 3 http://localhost:4321/status/
 ```
 
 ## Healthcheck
@@ -68,7 +76,7 @@ http://localhost:4321/status/
 Команда проверяет:
 
 - runtime: foreground/manual runtime или `launchd`;
-- docs-site: HTTP response от `http://localhost:4321/`;
+- docs-site: HTTP response от lightweight status path `http://localhost:4321/status/`;
 - repository: результат `healthcheck`;
 - projects: project configs и source discovery;
 - generated: `llms*.txt`, report и generated project pages;
@@ -125,6 +133,10 @@ storage/runtime/hub-dev.status.json
 ```
 
 Это runtime artifact, не source-документация.
+
+`hub-dev` хранит публичный docs URL и отдельный `health_url`, но сам supervisor использует TCP-readiness. HTTP-проверка `http://localhost:4321/status/` остается в `hub-status`/dashboard, чтобы отличать процесс, который слушает порт, от полноценно отвечающего docs-site.
+
+В `children` также появляется `fix-server`, если local fix action server запущен.
 
 Persistent runtime logs:
 

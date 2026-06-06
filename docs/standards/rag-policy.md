@@ -7,6 +7,7 @@ Lite RAG в AI Docs Hub является локальным derived index пов
 - Каждый проект индексируется в собственном namespace.
 - Search project-scoped по умолчанию.
 - Индексация начинается с project config validation, source discovery, exclude filtering и secret scan.
+- Secret-looking source files пропускаются и записываются в index security metadata; их содержимое не попадает в chunks/search results.
 - `.env`, private keys, tokens, cookies, sessions, credentials, dumps и secret-looking files не индексируются.
 - RAG output должен возвращать source path, section/heading, score, confidence, updated timestamp, content hash и snippet.
 - RAG index не является source of truth.
@@ -52,3 +53,21 @@ Watcher poll-ит configured include paths, MkDocs config path при enabled so
 - next step для missing или stale indexes.
 
 Stale index является operational warning, потому что search results могут отставать от docs-as-code.
+
+## Repair Action
+
+Dashboard и scripts могут исправлять `missing`, `stale` или unreadable project index через allowlisted action:
+
+```text
+rag.reindex
+```
+
+Action принимает только существующий project config, сохраняет project namespace isolation, запускает обычную индексацию:
+
+```sh
+python3.11 scripts/index-project --project <project> --reindex
+```
+
+После успешной индексации action регенерирует `llms*.txt`. Secret scan, exclude rules и path safety остаются теми же, что и при ручном `make reindex PROJECT=<project>`.
+
+Если secret scan находит suspicious файлы, `rag.reindex` индексирует только безопасные файлы проекта и оставляет предупреждение `security_skipped` в status diagnostics. Полное индексирование возможно только после исправления project docs или exclude rules в project config.

@@ -24,6 +24,7 @@ description: Команды AI Docs Hub по setup, runtime, RAG, MCP, scaffold 
 | `make docs-build` | Сгенерировать project pages и собрать static docs-site. |
 | `make hub-dev` | Запустить docs-site и watcher вместе в foreground. |
 | `make hub-status` | Проверить live runtime, docs-site, repository, projects, generated context, RAG, MkDocs, docs readiness, MCP и watcher. |
+| `python3.11 scripts/fix-server` | Запустить local allowlisted fix action server на `127.0.0.1:4322`. |
 
 Штатный URL docs-site:
 
@@ -70,12 +71,15 @@ Generated artifacts не редактируются вручную.
 | --- | --- |
 | `make index PROJECT=name` | Построить Lite RAG index одного проекта. |
 | `make reindex PROJECT=name` | Удалить существующий index и построить заново. |
+| `python3.11 scripts/apply-fix --action rag.reindex --project name` | Allowlisted repair action: переиндексировать project namespace и регенерировать `llms*.txt`. |
 | `make index-all` | Индексировать все валидные project configs. |
 | `make watch PROJECT=name` | Следить за одним проектом и переиндексировать при изменениях. |
 | `make watch-all` | Следить за всеми watchable проектами. |
 | `make check-secrets PROJECT=name` | Проверить разрешенные files проекта на secret-looking paths/content. |
 
 Индексация пишет локальные JSON/BM25 indexes в `storage/index`.
+
+`scripts/apply-fix` принимает только allowlisted actions. Для runtime доступны `docs-site.restart`, `runtime.start` и `runtime.install-start`; из dashboard они запускаются как фоновые jobs через `/api/apply-fix.json`.
 
 ## Documentation Quality
 

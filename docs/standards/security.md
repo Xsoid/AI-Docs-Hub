@@ -23,6 +23,8 @@ AI Docs Hub читает локальные проектные файлы, по�
 
 Если scan находит suspicious content, indexing/generated read для этого project должен быть blocked или skipped с warning.
 
+Lite RAG indexing использует режим skip: suspicious source files не читаются в chunks, а список пропусков сохраняется в index security metadata и показывается в status diagnostics.
+
 ## Path Safety
 
 Read operations должны использовать safe path resolution относительно project root. Запросы на path traversal или excluded path должны отклоняться.

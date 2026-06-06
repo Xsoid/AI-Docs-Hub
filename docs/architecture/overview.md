@@ -8,15 +8,15 @@ AI Docs Hub - локальный инфраструктурный репозит
 
 AI Docs Hub - это локальная multi-stack система. У каждого стека должна быть понятная зона ответственности:
 
-- Python 3.11: operational scripts, загрузка project configs, Lite RAG, MCP stdio server, healthcheck, источник данных для status API, watcher, documentation scaffold, secret scanning, generated project pages и генерация `llms*.txt`;
+- Python 3.11: operational scripts, загрузка project configs, Lite RAG, MCP stdio server, healthcheck, источник данных для status API, allowlisted fix actions, watcher, documentation scaffold, secret scanning, generated project pages и генерация `llms*.txt`;
 - Node.js 22 LTS и npm 10: runtime и build pipeline для docs-site;
-- Astro 6 и Starlight: сайт документации, shell страницы `/status/`, навигация, сборка search index и рендеринг контента из `docs-site/src/content/docs/`;
+- Astro 6 и Starlight: сайт документации, shell страницы `/status/`, status/fix API endpoints, навигация, сборка search index и рендеринг контента из `docs-site/src/content/docs/`;
 - Markdown docs-as-code: source-документация хаба в `docs/`, source-страницы docs-site в `docs-site/src/content/docs/` и документация подключенных проектов внутри самих проектов;
 - YAML project config: `configs/projects/*.yaml` задают project root, namespace, source include/exclude rules, agent rules и docs backend mode;
 - MkDocs adapter: read-only structural discovery для проектов с `mkdocs.yml` или `mkdocs.yaml`; adapter не запускает MkDocs plugins, hooks, Python code или Markdown extensions;
 - Lite JSON/BM25 RAG: локальная индексация и поиск по разрешенной документации проектов, хранение в `storage/index`;
 - MCP stdio bridge: `mcp/server.py` отдает project-scoped tools для Codex и других MCP clients через JSON-RPC stdio;
-- local runtime: `scripts/hub-dev` супервизирует docs-site и watcher в foreground; macOS `launchd` может запускать тот же supervisor persistently;
+- local runtime: `scripts/hub-dev` супервизирует docs-site, watcher и local fix action server в foreground; macOS `launchd` может запускать тот же supervisor persistently;
 - macOS menu bar app: optional Swift/AppKit wrapper, который собирается через `scripts/hub-menubar`; это operational convenience, а не source of truth;
 - generated artifacts: `storage/generated`, `docs-site/public/llms*.txt`, `docs-site/src/content/docs/projects/*`, runtime heartbeats, logs и indexes являются derived-артефактами.
 
@@ -58,6 +58,7 @@ MkDocs adapter не запускает `mkdocs build`, `plugins`, `hooks` или
 - `make docs-dev` регенерирует страницы проектов и запускает Astro в foreground-режиме;
 - локальный URL по умолчанию: `http://localhost:4321/`;
 - `/status/` показывает runtime-состояние хаба и project-scoped diagnostics там, где это имеет смысл: project config/source discovery, generated project pages, RAG indexes, MkDocs adapter, documentation readiness и scaffold availability;
+- `/api/apply-fix.json` запускает только allowlisted fix actions через `scripts/apply-fix`;
 - процесс docs-site пока не супервизируется самим хабом.
 
 ### Lite RAG
@@ -105,11 +106,19 @@ Watcher работает в foreground-режиме через `make watch`, `ma
 
 ### Runtime Supervisor
 
-`scripts/hub-dev` - foreground supervisor для локального runtime. Он запускает docs-site и watcher вместе, префиксует логи, пишет heartbeat/status file в `storage/runtime/hub-dev.status.json` и останавливает дочерние процессы при завершении.
+`scripts/hub-dev` - foreground supervisor для локального runtime. Он запускает docs-site, watcher и `scripts/fix-server` вместе, префиксует логи, пишет heartbeat/status file в `storage/runtime/hub-dev.status.json` и останавливает дочерние процессы при завершении.
 
 На macOS optional persistent-режим строится через `launchd`: `scripts/hub-launchd` устанавливает user LaunchAgent `local.ai-docs-hub.runtime`, который запускает тот же `scripts/hub-dev`.
 
 Persistent runtime отделен от глобального Codex config; MCP-подключения настраиваются отдельной точечной правкой `~/.codex/config.toml`.
+
+### Fix Actions
+
+`scripts/fix-server` обслуживает локальные dashboard кнопки на `127.0.0.1:4322` и вызывает `scripts/apply-fix`.
+
+`scripts/apply-fix` - allowlisted executor для operational fixes, которые запускаются из dashboard или CLI. Он не принимает произвольные shell-команды.
+
+Project-scoped fix actions, например `rag.reindex`, используют обычные project configs, namespace isolation, exclude rules и secret scan. Runtime fix actions ограничены управлением описанным `launchd` supervisor.
 
 ## Source Of Truth
 

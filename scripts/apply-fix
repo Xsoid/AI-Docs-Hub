@@ -1,0 +1,295 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+FIX_DIR = ROOT / "storage" / "runtime" / "fixes"
+LOG_DIR = ROOT / "storage" / "logs"
+LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / "local.ai-docs-hub.runtime.plist"
+
+ACTION_DESCRIPTIONS = {
+    "rag.reindex": "Reindex one project namespace and regenerate generated context.",
+    "docs-site.restart": "Restart the persistent docs-site runtime through launchd.",
+    "runtime.start": "Start the persistent AI Docs Hub launchd runtime.",
+    "runtime.install-start": "Install and start the persistent AI Docs Hub launchd runtime.",
+}
+PROJECT_ACTIONS = {"rag.reindex"}
+JOB_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+class FixError(RuntimeError):
+    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.details = details or {}
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def rel_to_root(path: Path) -> str:
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def safe_job_id(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip("-")
+    return cleaned[:120] or "fix"
+
+
+def new_job_id(action: str, project: str | None) -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    target = f"-{project}" if project else ""
+    return safe_job_id(f"{stamp}-{action}{target}-{int(time.time() * 1000) % 100000}")
+
+
+def job_path(job_id: str) -> Path:
+    if not JOB_ID_RE.match(job_id):
+        raise FixError("invalid job id")
+    return FIX_DIR / f"{job_id}.json"
+
+
+def write_job(job_id: str, payload: dict[str, Any]) -> None:
+    FIX_DIR.mkdir(parents=True, exist_ok=True)
+    path = job_path(job_id)
+    current: dict[str, Any] = {}
+    if path.exists():
+        try:
+            current = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            current = {}
+    current.update(payload)
+    current["updated_at"] = utc_now()
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def command_result(command: list[str], *, timeout: float) -> dict[str, Any]:
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(ROOT),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "command": command,
+            "returncode": 124,
+            "stdout": exc.stdout or "",
+            "stderr": exc.stderr or f"timed out after {timeout:.0f}s",
+        }
+    except OSError as exc:
+        return {
+            "command": command,
+            "returncode": 127,
+            "stdout": "",
+            "stderr": str(exc),
+        }
+    return {
+        "command": command,
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+    }
+
+
+def require_ok(result: dict[str, Any], message: str) -> None:
+    if result["returncode"] != 0:
+        raise FixError(message, details={"command_result": result})
+
+
+def validate_project(project: str | None) -> Any:
+    if not project:
+        raise FixError("project is required")
+    from rag.config import get_project_config, is_unbound_example_config  # noqa: PLC0415
+
+    config = get_project_config(project)
+    if is_unbound_example_config(config):
+        raise FixError(f"{project} is an unbound sample config")
+    if not config.root.exists() or not config.root.is_dir():
+        raise FixError(f"project root does not exist: {config.root}")
+    return config
+
+
+def action_rag_reindex(project: str | None) -> dict[str, Any]:
+    config = validate_project(project)
+    assert project is not None
+    index_result = command_result(
+        [sys.executable, str(ROOT / "scripts" / "index-project"), "--project", project, "--reindex"],
+        timeout=180,
+    )
+    require_ok(index_result, f"failed to reindex {project}")
+
+    llms_result = command_result([sys.executable, str(ROOT / "scripts" / "generate-llms")], timeout=180)
+    require_ok(llms_result, "failed to regenerate generated context after reindex")
+
+    return {
+        "status": "ok",
+        "message": f"reindexed {project}",
+        "project": project,
+        "namespace": config.namespace,
+        "index_path": rel_to_root(config.index_path),
+        "commands": [index_result, llms_result],
+    }
+
+
+def action_launchd(command: str) -> dict[str, Any]:
+    if sys.platform != "darwin":
+        raise FixError("launchd fixes are available only on macOS")
+    if command in {"start", "restart"} and not LAUNCHD_PLIST_PATH.exists():
+        raise FixError(
+            "persistent runtime is not installed",
+            details={"next_step": "make hub-install && make hub-start"},
+        )
+    result = command_result([sys.executable, str(ROOT / "scripts" / "hub-launchd"), command], timeout=60)
+    require_ok(result, f"hub-launchd {command} failed")
+    return {
+        "status": "ok",
+        "message": f"hub-launchd {command} completed",
+        "commands": [result],
+    }
+
+
+def action_runtime_install_start() -> dict[str, Any]:
+    install = action_launchd("install")
+    start = action_launchd("start")
+    return {
+        "status": "ok",
+        "message": "persistent runtime installed and started",
+        "commands": [*install.get("commands", []), *start.get("commands", [])],
+    }
+
+
+def run_action(action: str, project: str | None) -> dict[str, Any]:
+    if action not in ACTION_DESCRIPTIONS:
+        raise FixError(f"unsupported action: {action}")
+    if action in PROJECT_ACTIONS:
+        validate_project(project)
+    elif project:
+        raise FixError(f"action {action} does not accept project")
+
+    if action == "rag.reindex":
+        return action_rag_reindex(project)
+    if action == "docs-site.restart":
+        return action_launchd("restart")
+    if action == "runtime.start":
+        return action_launchd("start")
+    if action == "runtime.install-start":
+        return action_runtime_install_start()
+    raise FixError(f"unsupported action: {action}")
+
+
+def detach(args: argparse.Namespace) -> dict[str, Any]:
+    job_id = new_job_id(args.action, args.project)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = LOG_DIR / f"apply-fix-{job_id}.log"
+    write_job(
+        job_id,
+        {
+            "job_id": job_id,
+            "status": "queued",
+            "action": args.action,
+            "project": args.project,
+            "created_at": utc_now(),
+            "log_path": rel_to_root(log_path),
+        },
+    )
+
+    command = [sys.executable, str(ROOT / "scripts" / "apply-fix"), "--json", "--action", args.action, "--job-id", job_id]
+    if args.project:
+        command.extend(["--project", args.project])
+    log = log_path.open("ab")
+    process = subprocess.Popen(
+        command,
+        cwd=str(ROOT),
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+        close_fds=True,
+    )
+    log.close()
+    write_job(job_id, {"status": "running", "pid": process.pid, "started_at": utc_now()})
+    return {
+        "status": "started",
+        "job_id": job_id,
+        "pid": process.pid,
+        "action": args.action,
+        "project": args.project,
+        "log_path": rel_to_root(log_path),
+        "job_path": rel_to_root(job_path(job_id)),
+    }
+
+
+def response_json(payload: dict[str, Any], exit_code: int) -> int:
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return exit_code
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Apply an allowlisted AI Docs Hub fix action.")
+    parser.add_argument("--action", required=True, choices=sorted(ACTION_DESCRIPTIONS))
+    parser.add_argument("--project", help="Project name for project-scoped fixes.")
+    parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    parser.add_argument("--detach", action="store_true", help="Start the fix in a detached background job.")
+    parser.add_argument("--job-id", help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    try:
+        if args.detach:
+            payload = detach(args)
+            return response_json(payload, 0) if args.json else 0
+
+        if args.job_id:
+            write_job(args.job_id, {"status": "running", "started_at": utc_now()})
+        result = run_action(args.action, args.project)
+        payload = {
+            "status": "ok",
+            "action": args.action,
+            "project": args.project,
+            "completed_at": utc_now(),
+            "result": result,
+        }
+        if args.job_id:
+            write_job(args.job_id, {"status": "ok", "completed_at": payload["completed_at"], "result": result})
+        if args.json:
+            return response_json(payload, 0)
+        print(payload["result"]["message"])
+        return 0
+    except FixError as exc:
+        payload = {
+            "status": "error",
+            "action": args.action,
+            "project": args.project,
+            "completed_at": utc_now(),
+            "error": str(exc),
+            "details": exc.details,
+        }
+        if args.job_id:
+            write_job(args.job_id, payload)
+        if args.json:
+            return response_json(payload, 1)
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

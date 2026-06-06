@@ -37,4 +37,33 @@ Output содержит:
 - `components`;
 - per-component `status`, `message`, `required`, `details`.
 
-Dashboard должен использовать этот endpoint как source data и не выполнять destructive actions.
+RAG project details могут включать `secret_blocked_count`, `secret_blocked` и status `security_skipped`, если индекс свежий, но часть source files была пропущена secret scan.
+
+Dashboard использует этот endpoint как source data.
+
+Когда status JSON запрашивается из самого dashboard API, endpoint запускает `scripts/hub-status --json --docs-site-self-ok`. Это предотвращает рекурсивную HTTP-проверку docs-site из запроса, который уже доказывает, что dashboard/API обслуживаются.
+
+## Fix Actions
+
+Dashboard может показывать кнопки исправления только для allowlisted operational actions:
+
+- `rag.reindex` - переиндексировать конкретный project namespace через `scripts/index-project --reindex` и затем регенерировать `llms*.txt`;
+- `docs-site.restart` - перезапустить persistent runtime через `scripts/hub-launchd restart`;
+- `runtime.start` - запустить уже установленный LaunchAgent;
+- `runtime.install-start` - установить и запустить LaunchAgent после явного нажатия пользователя.
+
+Fix actions запускаются через локальный runtime endpoint:
+
+```text
+http://127.0.0.1:4322/apply-fix
+http://127.0.0.1:4322/job
+```
+
+Runtime endpoint обслуживает:
+
+```text
+scripts/fix-server
+scripts/apply-fix
+```
+
+Endpoint не принимает произвольные команды. Project-scoped actions должны валидировать project config, сохранять namespace isolation и проходить обычные exclude/secret-scan правила indexing.

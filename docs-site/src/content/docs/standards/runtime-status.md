@@ -42,6 +42,10 @@ make hub-status
 - mcp;
 - watcher.
 
+`hub-dev` также запускает `scripts/fix-server` на `127.0.0.1:4322` для dashboard fix actions. Это runtime child process, а не source-of-truth.
+
+CLI `hub-status` проверяет docs-site HTTP через lightweight dashboard path `http://localhost:4321/status/`; для probe используется system `curl`, если он доступен. Dashboard API не делает recursive HTTP-call в тот же Astro process и запускает `hub-status` с `--docs-site-self-ok`.
+
 Статусы:
 
 - `UP`: все checks ok;

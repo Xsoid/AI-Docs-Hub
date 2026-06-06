@@ -25,6 +25,7 @@ from rag.health import run_healthcheck  # noqa: E402
 from rag.sources import build_source_plan  # noqa: E402
 
 DOCS_URL = "http://localhost:4321/"
+DOCS_HEALTH_URL = "http://localhost:4321/status/"
 RUNTIME_DIR = ROOT / "storage" / "runtime"
 HUB_DEV_STATUS_PATH = RUNTIME_DIR / "hub-dev.status.json"
 LAUNCHD_LABEL = "local.ai-docs-hub.runtime"
@@ -198,9 +199,62 @@ def port_listeners(port: int) -> list[dict[str, Any]]:
     return listeners
 
 
+def curl_http_status(url: str, timeout: float) -> tuple[int | None, str | None]:
+    curl = shutil.which("curl")
+    if not curl:
+        return None, "curl was not found"
+    try:
+        result = subprocess.run(
+            [
+                curl,
+                "-I",
+                "-sS",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+                "--max-time",
+                str(max(1, int(timeout))),
+                url,
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout + 1,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, str(exc)
+    if result.returncode != 0:
+        return None, (result.stderr or result.stdout).strip() or f"curl exited with {result.returncode}"
+    try:
+        return int(result.stdout.strip()), None
+    except ValueError:
+        return None, f"invalid curl HTTP status: {result.stdout.strip()}"
+
+
 def check_docs_site(url: str, timeout: float) -> Component:
     port = urllib.parse.urlparse(url).port or 80
     listeners = port_listeners(port)
+    curl_status, curl_error = curl_http_status(url, timeout)
+    if curl_status is not None:
+        if 200 <= curl_status < 400:
+            pid_text = ""
+            if listeners:
+                pid_text = " pid " + ",".join(str(item["pid"]) for item in listeners if item.get("pid"))
+            return Component(
+                "docs-site",
+                "ok",
+                f"HTTP {curl_status} at {url}{pid_text}",
+                details={"url": url, "http_status": curl_status, "listeners": listeners, "client": "curl"},
+            )
+        return Component(
+            "docs-site",
+            "down",
+            f"HTTP {curl_status} at {url}",
+            details={"url": url, "http_status": curl_status, "listeners": listeners, "client": "curl"},
+        )
+
     request = urllib.request.Request(url, method="HEAD")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -213,7 +267,7 @@ def check_docs_site(url: str, timeout: float) -> Component:
             "docs-site",
             "down",
             f"{reason} at {url}",
-            details={"url": url, "listeners": listeners},
+            details={"url": url, "listeners": listeners, "curl_error": curl_error},
         )
     except (TimeoutError, socket.timeout) as exc:
         return Component(
@@ -238,6 +292,15 @@ def check_docs_site(url: str, timeout: float) -> Component:
         "down",
         f"HTTP {status_code} at {url}",
         details={"url": url, "http_status": status_code, "listeners": listeners},
+    )
+
+
+def check_docs_site_from_api(url: str) -> Component:
+    return Component(
+        "docs-site",
+        "ok",
+        "dashboard API served this status response",
+        details={"url": url, "check_mode": "api-self"},
     )
 
 
@@ -446,9 +509,20 @@ def rag_project_statuses() -> tuple[list[dict[str, Any]], list[dict[str, str]], 
         newest_source = source_summary.get("newest_source_mtime")
         newest_source_dt = parse_iso(str(newest_source)) if newest_source else None
         stale = bool(indexed_at and newest_source_dt and newest_source_dt.timestamp() > indexed_at.timestamp() + 1)
-        status = "stale" if stale else "indexed"
+        security = index.get("security", {}) if isinstance(index.get("security"), dict) else {}
+        secret_scan = security.get("secret_scan", {}) if isinstance(security.get("secret_scan"), dict) else {}
+        secret_blocked_count = int(secret_scan.get("blocked_count", 0) or 0)
+        secret_blocked = secret_scan.get("blocked", []) if isinstance(secret_scan.get("blocked"), list) else []
+        status = "stale" if stale else "security_skipped" if secret_blocked_count else "indexed"
         if stale:
             warnings.append({"project": config.project, "message": "index is older than source documentation"})
+        if secret_blocked_count:
+            warnings.append(
+                {
+                    "project": config.project,
+                    "message": f"secret scan skipped {secret_blocked_count} suspicious file(s)",
+                }
+            )
 
         projects.append(
             {
@@ -461,9 +535,17 @@ def rag_project_statuses() -> tuple[list[dict[str, Any]], list[dict[str, str]], 
                 "docs_backend": index.get("docs_backend", config.docs_backend),
                 "documents_count": int(index.get("documents_count", 0)),
                 "chunks_count": int(index.get("chunks_count", 0)),
+                "secret_blocked_count": secret_blocked_count,
+                "secret_blocked": secret_blocked,
                 "indexed_at": index.get("indexed_at"),
                 "index_path": rel_to_root(config.index_path),
-                "next_step": f"make reindex PROJECT={config.project}" if stale else "",
+                "next_step": (
+                    f"make reindex PROJECT={config.project}"
+                    if stale
+                    else "review skipped secret-looking files before full indexing"
+                    if secret_blocked_count
+                    else ""
+                ),
                 **source_summary,
             }
         )
@@ -861,8 +943,13 @@ def render_human(overall: str, components: list[Component]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Show live AI Docs Hub runtime status.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    parser.add_argument("--url", default=DOCS_URL, help=f"Docs-site URL. Default: {DOCS_URL}")
+    parser.add_argument("--url", default=DOCS_HEALTH_URL, help=f"Docs-site health URL. Default: {DOCS_HEALTH_URL}")
     parser.add_argument("--timeout", type=float, default=5.0, help="Network/MCP timeout in seconds.")
+    parser.add_argument(
+        "--docs-site-self-ok",
+        action="store_true",
+        help="Trust the caller's dashboard/API request as the docs-site liveness proof.",
+    )
     parser.add_argument(
         "--watcher-stale-after",
         type=float,
@@ -874,7 +961,7 @@ def main() -> int:
     repository, rag = check_repository_and_rag()
     components = [
         check_runtime(stale_after=args.watcher_stale_after),
-        check_docs_site(args.url, timeout=args.timeout),
+        check_docs_site_from_api(args.url) if args.docs_site_self_ok else check_docs_site(args.url, timeout=args.timeout),
         repository,
         check_project_configs(),
         check_generated_context(),

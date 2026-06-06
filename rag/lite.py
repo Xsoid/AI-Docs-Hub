@@ -161,13 +161,10 @@ def build_index(config: ProjectConfig, reindex: bool = False) -> dict[str, Any]:
     
     try:
         secret_report = check_project_secrets(config)
+        blocked_files = [str(f["source_path"]) for f in secret_report.get("blocked", [])]
+        blocked_file_set = set(blocked_files)
         if secret_report["blocked_count"]:
-            blocked_files = [f["source_path"] for f in secret_report.get("blocked", [])]
             log_secret_scan_blocked(config.project, secret_report["blocked_count"], blocked_files)
-            raise ValueError(
-                f"Secret scan blocked indexing for {config.project}: "
-                f"{secret_report['blocked_count']} suspicious file(s)"
-            )
 
         if reindex and config.index_path.exists():
             config.index_path.unlink()
@@ -180,6 +177,8 @@ def build_index(config: ProjectConfig, reindex: bool = False) -> dict[str, Any]:
 
         for path in files:
             rel = path.relative_to(root).as_posix()
+            if rel in blocked_file_set:
+                continue
             if not is_included(rel, source_plan.include) or is_excluded(rel, source_plan.exclude):
                 continue
             text, truncated = _read_text(path)
@@ -229,6 +228,10 @@ def build_index(config: ProjectConfig, reindex: bool = False) -> dict[str, Any]:
             "indexed_at": utc_now(),
             "documents_count": len(documents),
             "chunks_count": len(chunks),
+            "security": {
+                "secret_scan": secret_report,
+                "skipped_source_files": blocked_files,
+            },
             "documents": documents,
             "chunks": chunks,
         }

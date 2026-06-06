@@ -1,0 +1,114 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+ROOT = Path(__file__).resolve().parents[1]
+APPLY_FIX = ROOT / "scripts" / "apply-fix"
+FIX_DIR = ROOT / "storage" / "runtime" / "fixes"
+ALLOWED_ACTIONS = {"rag.reindex", "docs-site.restart", "runtime.start", "runtime.install-start"}
+
+
+def run_apply_fix(action: str, project: str | None) -> tuple[int, dict[str, object]]:
+    if action not in ALLOWED_ACTIONS:
+        return HTTPStatus.BAD_REQUEST, {"status": "error", "error": "unsupported action"}
+    command = [sys.executable, str(APPLY_FIX), "--json", "--detach", "--action", action]
+    if project:
+        command.extend(["--project", project])
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(ROOT),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return HTTPStatus.GATEWAY_TIMEOUT, {"status": "error", "error": "apply-fix timed out"}
+    except OSError as exc:
+        return HTTPStatus.INTERNAL_SERVER_ERROR, {"status": "error", "error": str(exc)}
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        payload = {"status": "error", "error": result.stderr or "invalid apply-fix response"}
+    status = HTTPStatus.ACCEPTED if payload.get("status") != "error" else HTTPStatus.BAD_REQUEST
+    return status, payload
+
+
+def read_job(job_id: str) -> tuple[int, dict[str, object]]:
+    if not job_id.replace("-", "").replace("_", "").replace(".", "").isalnum():
+        return HTTPStatus.BAD_REQUEST, {"status": "error", "error": "invalid job_id"}
+    path = (FIX_DIR / f"{job_id}.json").resolve()
+    if not str(path).startswith(str(FIX_DIR.resolve())):
+        return HTTPStatus.BAD_REQUEST, {"status": "error", "error": "invalid job_id"}
+    try:
+        return HTTPStatus.OK, json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return HTTPStatus.NOT_FOUND, {"status": "error", "error": "job not found"}
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "AI Docs Hub Fix Server"
+
+    def log_message(self, fmt: str, *args: object) -> None:
+        print(f"[fix-server] {self.address_string()} {fmt % args}", flush=True)
+
+    def send_json(self, status: int, payload: dict[str, object]) -> None:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("content-type", "application/json; charset=utf-8")
+        self.send_header("cache-control", "no-store")
+        self.send_header("access-control-allow-origin", "*")
+        self.send_header("access-control-allow-methods", "GET, OPTIONS")
+        self.send_header("access-control-allow-headers", "content-type")
+        self.send_header("content-length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_json(HTTPStatus.NO_CONTENT, {})
+
+    def do_GET(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        query = {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
+        if parsed.path == "/health":
+            self.send_json(HTTPStatus.OK, {"status": "ok"})
+            return
+        if parsed.path == "/apply-fix":
+            status, payload = run_apply_fix(query.get("action", ""), query.get("project"))
+            self.send_json(status, payload)
+            return
+        if parsed.path == "/job":
+            status, payload = read_job(query.get("job_id", ""))
+            self.send_json(status, payload)
+            return
+        self.send_json(HTTPStatus.NOT_FOUND, {"status": "error", "error": "not found"})
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run local AI Docs Hub fix action server.")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=4322)
+    args = parser.parse_args()
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    print(f"[fix-server] listening on http://{args.host}:{args.port}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        return 130
+    finally:
+        server.server_close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

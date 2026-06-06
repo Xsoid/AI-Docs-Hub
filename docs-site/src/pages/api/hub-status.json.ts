@@ -11,7 +11,7 @@ const statusScript = resolve(hubRoot, 'scripts/hub-status');
 
 async function readStatus() {
   try {
-    const result = await execFileAsync('python3.11', [statusScript, '--json'], {
+    const result = await execFileAsync('python3.11', [statusScript, '--json', '--docs-site-self-ok'], {
       cwd: hubRoot,
       timeout: 7000,
       maxBuffer: 1024 * 1024
@@ -45,4 +45,3 @@ export const GET: APIRoute = async () => {
     }
   });
 };
-

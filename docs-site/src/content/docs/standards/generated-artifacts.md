@@ -22,6 +22,7 @@ Generated artifacts являются производными от docs-as-code 
 - Не редактировать generated artifacts вручную как source documentation.
 - Source changes должны вноситься в `docs/`, `docs-site/src/content/docs/`, project docs или configs.
 - Generated artifacts можно пересоздавать командами `make project-pages`, `make llms`, `make index`, `make docs-build`.
+- Allowlisted fix action `rag.reindex` пересоздает project index и после успешной индексации запускает regeneration `llms*.txt`.
 - Generated project pages являются web-представлением configs/index/readiness, а не source docs проекта.
 
 ## Status

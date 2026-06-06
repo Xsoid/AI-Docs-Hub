@@ -35,7 +35,7 @@
 Команда проверяет:
 
 - runtime source: foreground `hub-dev` или `launchd`;
-- docs-site через HTTP `HEAD` на `http://localhost:4321/`;
+- docs-site через HTTP-проверку lightweight path `http://localhost:4321/status/`;
 - repository health через `rag.health.run_healthcheck`;
 - Lite RAG backend и количество индексов;
 - MCP bridge через запуск `mcp/server.py`, `tools/list` и MCP `healthcheck`;
@@ -47,7 +47,7 @@
 AI Docs Hub: DOWN
 
 runtime     DOWN     no foreground hub-dev and launchd is not installed
-docs-site   DOWN     [Errno 61] Connection refused at http://localhost:4321/
+docs-site   DOWN     [Errno 61] Connection refused at http://localhost:4321/status/
 repository  OK       healthcheck ok
 rag         OK       lite-json-bm25, 3 indexes
 mcp         OK       10 tools available
@@ -93,8 +93,9 @@ Foreground supervisor для локальной разработки.
 - перед запуском выполняет `scripts/generate-project-pages`;
 - запускает docs-site через `scripts/docs-npm run dev -- --host 0.0.0.0 --port 4321`;
 - запускает watcher через `scripts/watch-project --all`;
+- запускает local fix action server через `scripts/fix-server` на `127.0.0.1:4322`;
 - префиксует stdout дочерних процессов как `[docs]` и `[watch]`;
-- проверяет, что docs-site поднялся на `http://localhost:4321/`;
+- проверяет, что docs-site начал слушать TCP на `localhost:4321`;
 - пишет `storage/runtime/hub-dev.status.json`;
 - при `Ctrl+C`, `SIGTERM` или падении дочернего процесса останавливает все дочерние процессы.
 
@@ -173,11 +174,17 @@ storage/runtime/hub-dev.status.json
       "pid": 12346,
       "status": "running",
       "url": "http://localhost:4321/",
+      "health_url": "http://localhost:4321/status/",
       "http": "TCP localhost:4321"
     },
     "watcher": {
       "pid": 12347,
       "status": "running"
+    },
+    "fix-server": {
+      "pid": 12348,
+      "status": "running",
+      "url": "http://127.0.0.1:4322/"
     }
   }
 }
@@ -216,4 +223,6 @@ GUI dashboard реализован по адресу:
 http://localhost:4321/status/
 ```
 
-Он использует `/api/hub-status.json`, который вызывает `scripts/hub-status --json`.
+Он использует `/api/hub-status.json`, который вызывает `scripts/hub-status --json --docs-site-self-ok`, чтобы не делать рекурсивный HTTP-call в тот же Astro process.
+
+Dashboard может запускать allowlisted fix actions через `http://127.0.0.1:4322/apply-fix`. Runtime actions ограничены `launchd` supervisor, а RAG action `rag.reindex` работает только в одном project namespace.

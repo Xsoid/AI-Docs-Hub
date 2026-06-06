@@ -455,6 +455,39 @@ const title = 'Статус AI Docs Hub';
         overflow-wrap: anywhere;
       }
 
+      .fix-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .fix-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        padding: 0 10px;
+        border: 1px solid #b8c0c0;
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .fix-button:hover {
+        border-color: #8f9b9b;
+        background: #fbfbfa;
+      }
+
+      .fix-button:disabled {
+        opacity: 0.68;
+        cursor: progress;
+      }
+
       .footer {
         display: flex;
         align-items: center;
@@ -729,6 +762,7 @@ const title = 'Статус AI Docs Hub';
         paragraphs[0].textContent = copy.description;
         paragraphs[1].textContent = component.message || 'Нет сообщения.';
         appendComponentDetails(name, article, component.details || {});
+        appendComponentFixes(name, article, component);
         return article;
       }
 
@@ -738,7 +772,7 @@ const title = 'Статус AI Docs Hub';
         } else if (name === 'generated') {
           appendProjectRows(article, details.projects, generatedBadge, generatedMeta);
         } else if (name === 'rag') {
-          appendProjectRows(article, details.projects, ragBadge, ragMeta);
+          appendProjectRows(article, details.projects, ragBadge, ragMeta, ragProjectFixes);
         } else if (name === 'mkdocs') {
           appendProjectRows(article, details.projects, mkdocsBadge, mkdocsMeta);
         } else if (name === 'docs-readiness') {
@@ -793,12 +827,20 @@ const title = 'Статус AI Docs Hub';
 
       function ragBadge(project) {
         if (project.stale || project.status === 'stale') return { text: 'stale', kind: 'warning' };
+        if (project.status === 'security_skipped' || project.secret_blocked_count) {
+          return { text: 'skipped', kind: 'warning' };
+        }
         if (project.indexed) return { text: 'indexed', kind: 'ok' };
         if (project.status === 'error' || project.status === 'blocked') return { text: project.status, kind: 'error' };
         return { text: project.status || 'missing', kind: 'warning' };
       }
 
       function ragMeta(project) {
+        const firstSecret = Array.isArray(project.secret_blocked) ? project.secret_blocked[0] : null;
+        const firstFinding = Array.isArray(firstSecret?.findings) ? firstSecret.findings[0] : null;
+        const firstSecretText = firstSecret
+          ? `first skipped: ${firstSecret.source_path}${firstFinding?.line ? `:${firstFinding.line}` : ''}`
+          : '';
         if (!project.indexed) {
           return [project.message || 'index is not available', project.index_path ? `index: ${project.index_path}` : ''];
         }
@@ -810,9 +852,22 @@ const title = 'Статус AI Docs Hub';
           project.indexed_at ? `indexed: ${formatTime(project.indexed_at)}` : '',
           project.newest_source_mtime ? `newest source: ${formatTime(project.newest_source_mtime)}` : '',
           project.stale ? 'freshness: stale' : 'freshness: fresh',
+          project.secret_blocked_count ? `secret scan skipped: ${project.secret_blocked_count}` : '',
+          firstSecretText,
           project.index_path ? `index: ${project.index_path}` : '',
           project.next_step ? `next: ${project.next_step}` : ''
         ];
+      }
+
+      function ragProjectFixes(project) {
+        if (project.status === 'blocked') return [];
+        if (project.stale || project.status === 'stale') {
+          return [{ action: 'rag.reindex', project: project.project, label: 'Переиндексировать' }];
+        }
+        if (!project.indexed && ['missing', 'error'].includes(project.status || '')) {
+          return [{ action: 'rag.reindex', project: project.project, label: 'Собрать индекс' }];
+        }
+        return [];
       }
 
       function docsReadinessBadge(project) {
@@ -832,7 +887,38 @@ const title = 'Статус AI Docs Hub';
         ];
       }
 
-      function appendProjectRows(article, rawProjects, badgeFor, metaFor) {
+      function componentFixes(name, component) {
+        if (name === 'docs-site' && component.status !== 'ok') {
+          return [{ action: 'docs-site.restart', label: 'Перезапустить сайт' }];
+        }
+        if (name === 'runtime' && component.status !== 'ok') {
+          const launchd = component.details?.launchd || {};
+          if (launchd.installed) return [{ action: 'runtime.start', label: 'Запустить runtime' }];
+          return [{ action: 'runtime.install-start', label: 'Установить и запустить' }];
+        }
+        return [];
+      }
+
+      function appendComponentFixes(name, article, component) {
+        const fixes = componentFixes(name, component);
+        if (!fixes.length) return;
+        const wrap = scopedElement('div', 'fix-actions');
+        for (const fix of fixes) {
+          wrap.append(createFixButton(fix));
+        }
+        article.append(wrap);
+      }
+
+      function createFixButton(fix) {
+        const button = scopedElement('button', 'fix-button');
+        button.type = 'button';
+        button.dataset.fixAction = fix.action;
+        if (fix.project) button.dataset.fixProject = fix.project;
+        button.textContent = fix.label;
+        return button;
+      }
+
+      function appendProjectRows(article, rawProjects, badgeFor, metaFor, fixesFor) {
         const projects = Array.isArray(rawProjects) ? rawProjects : [];
         if (!projects.length) return;
 
@@ -854,6 +940,14 @@ const title = 'Статус AI Docs Hub';
           meta.textContent = parts.join(' · ');
 
           row.append(title, meta);
+          const fixes = fixesFor ? fixesFor(project) : [];
+          if (fixes.length) {
+            const wrap = scopedElement('div', 'fix-actions');
+            for (const fix of fixes) {
+              wrap.append(createFixButton(fix));
+            }
+            row.append(wrap);
+          }
           list.append(row);
         }
         article.append(list);
@@ -933,7 +1027,9 @@ const title = 'Статус AI Docs Hub';
       const refreshButton = document.getElementById('refresh');
       const apiPath = document.getElementById('apiPath');
       const apiLabel = 'Источник: /api/hub-status.json';
+      const fixApiBase = 'http://127.0.0.1:4322';
       let refreshInFlight = false;
+      let fixInFlight = false;
 
       function setRefreshButton(active) {
         refreshButton.disabled = active;
@@ -965,7 +1061,97 @@ const title = 'Статус AI Docs Hub';
         }
       }
 
+      function setFixButtonsDisabled(active) {
+        document.querySelectorAll('button[data-fix-action]').forEach((button) => {
+          button.disabled = active;
+        });
+      }
+
+      function fixMessage(payload) {
+        if (payload?.result?.message) return payload.result.message;
+        if (payload?.error) return payload.error;
+        if (payload?.job_id) return `job ${payload.job_id}`;
+        return 'fix action';
+      }
+
+      async function pollFixJob(jobId, attempt = 0) {
+        let response;
+        let payload;
+        try {
+          response = await fetch(`${fixApiBase}/job?job_id=${encodeURIComponent(jobId)}`, {
+            cache: 'no-store'
+          });
+          payload = await response.json();
+        } catch (error) {
+          if (attempt < 60) {
+            apiPath.textContent = `Жду результат исправления: ${jobId}`;
+            await new Promise((resolve) => window.setTimeout(resolve, 2000));
+            return pollFixJob(jobId, attempt + 1);
+          }
+          throw error;
+        }
+        if (!response.ok && attempt < 60) {
+          apiPath.textContent = `Жду результат исправления: ${jobId}`;
+          await new Promise((resolve) => window.setTimeout(resolve, 2000));
+          return pollFixJob(jobId, attempt + 1);
+        }
+        if (['queued', 'running'].includes(payload.status) && attempt < 60) {
+          apiPath.textContent = `Исправление выполняется: ${jobId}`;
+          await new Promise((resolve) => window.setTimeout(resolve, 2000));
+          return pollFixJob(jobId, attempt + 1);
+        }
+        if (payload.status === 'ok') {
+          apiPath.textContent = `Исправление выполнено: ${fixMessage(payload)}`;
+          refresh();
+          return;
+        }
+        throw new Error(fixMessage(payload));
+      }
+
+      function showFixError(error) {
+        apiPath.textContent = `Ошибка исправления: ${error instanceof Error ? error.message : 'неизвестная ошибка'}`;
+        fixInFlight = false;
+        setFixButtonsDisabled(false);
+      }
+
+      async function applyFix(button) {
+        if (fixInFlight) return;
+        fixInFlight = true;
+        setFixButtonsDisabled(true);
+        const originalText = button.textContent;
+        button.textContent = 'Запускаю...';
+        const action = button.dataset.fixAction;
+        const project = button.dataset.fixProject;
+        try {
+          const params = new URLSearchParams({ action });
+          if (project) params.set('project', project);
+          const response = await fetch(`${fixApiBase}/apply-fix?${params.toString()}`, {
+            cache: 'no-store'
+          });
+          const payload = await response.json();
+          if (!response.ok || payload.status === 'error') throw new Error(fixMessage(payload));
+          apiPath.textContent = `Исправление запущено: ${fixMessage(payload)}`;
+          if (payload.job_id) {
+            await pollFixJob(payload.job_id);
+          } else {
+            refresh();
+          }
+        } catch (error) {
+          showFixError(error);
+        } finally {
+          button.textContent = originalText;
+          fixInFlight = false;
+          setFixButtonsDisabled(false);
+        }
+      }
+
       refreshButton.addEventListener('click', refresh);
+      document.addEventListener('click', (event) => {
+        if (!(event.target instanceof Element)) return;
+        const button = event.target.closest('button[data-fix-action]');
+        if (!(button instanceof HTMLButtonElement)) return;
+        applyFix(button);
+      });
       refresh();
       window.setInterval(refresh, 5000);
     </script>

@@ -121,7 +121,9 @@ def write_status(
     status: str,
     docs: Child | None,
     watcher: Child | None,
+    fix_server: Child | None,
     docs_url: str,
+    health_url: str,
     docs_http: str,
     message: str,
 ) -> None:
@@ -129,12 +131,17 @@ def write_status(
     children: dict[str, Any] = {}
     docs_state = child_state(docs)
     watcher_state = child_state(watcher)
+    fix_server_state = child_state(fix_server)
     if docs_state is not None:
         docs_state["url"] = docs_url
+        docs_state["health_url"] = health_url
         docs_state["http"] = docs_http
         children["docs-site"] = docs_state
     if watcher_state is not None:
         children["watcher"] = watcher_state
+    if fix_server_state is not None:
+        fix_server_state["url"] = "http://127.0.0.1:4322/"
+        children["fix-server"] = fix_server_state
     payload = {
         "status": status,
         "pid": os.getpid(),
@@ -184,10 +191,12 @@ def main() -> int:
     parser.add_argument("--host", default="0.0.0.0", help="Docs-site host passed to Astro.")
     parser.add_argument("--port", type=int, default=4321, help="Docs-site port passed to Astro.")
     parser.add_argument("--no-watch", action="store_true", help="Do not start watch-all.")
+    parser.add_argument("--no-fix-server", action="store_true", help="Do not start local fix action server.")
     parser.add_argument("--startup-timeout", type=float, default=30.0, help="Seconds to wait for docs-site.")
     args = parser.parse_args()
 
     docs_url = f"http://localhost:{args.port}/"
+    docs_health_url = f"http://localhost:{args.port}/status/"
     stop_requested = {"value": False, "signal": None}
 
     def handle_signal(signum: int, _frame: Any) -> None:
@@ -199,6 +208,7 @@ def main() -> int:
 
     docs: Child | None = None
     watcher: Child | None = None
+    fix_server: Child | None = None
     children: list[Child] = []
     output: queue.Queue[tuple[str, str | None]] = queue.Queue()
     docs_seen_ok = False
@@ -230,7 +240,12 @@ def main() -> int:
             children.append(watcher)
             threading.Thread(target=reader, args=(watcher, output), daemon=True).start()
 
-        log("hub", f"runtime starting; docs-site target is {docs_url}")
+        if not args.no_fix_server:
+            fix_server = start_child("fix", [sys.executable, str(ROOT / "scripts" / "fix-server")])
+            children.append(fix_server)
+            threading.Thread(target=reader, args=(fix_server, output), daemon=True).start()
+
+        log("hub", f"runtime starting; docs-site target is {docs_url}, health is {docs_health_url}")
         while True:
             while True:
                 try:
@@ -250,10 +265,10 @@ def main() -> int:
                     exit_code = 1 if return_code == 0 else return_code
                     raise RuntimeError(final_message)
 
-            ok, docs_http = docs_site_tcp_ok(docs_url) if docs_seen_ok else docs_site_ok(docs_url)
+            ok, docs_http = docs_site_tcp_ok(docs_url)
             if ok:
                 if not docs_seen_ok:
-                    log("hub", f"docs-site is up at {docs_url} ({docs_http})")
+                    log("hub", f"docs-site is listening at {docs_url} ({docs_http})")
                 docs_seen_ok = True
                 docs_down_since = None
             else:
@@ -270,7 +285,7 @@ def main() -> int:
                         exit_code = 1
                         raise RuntimeError(final_message)
 
-            write_status("running", docs, watcher, docs_url, docs_http, "running")
+            write_status("running", docs, watcher, fix_server, docs_url, docs_health_url, docs_http, "running")
 
             if stop_requested["value"]:
                 signum = stop_requested["signal"]
@@ -288,7 +303,7 @@ def main() -> int:
             exit_code = 1
     finally:
         stop_children(children)
-        write_status("stopped", docs, watcher, docs_url, "stopped", final_message)
+        write_status("stopped", docs, watcher, fix_server, docs_url, docs_health_url, "stopped", final_message)
         log("hub", f"status: stopped ({final_message})")
     return exit_code
 

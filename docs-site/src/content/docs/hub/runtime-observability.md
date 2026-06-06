@@ -14,7 +14,7 @@ make hub-status
 Команда проверяет:
 
 - runtime source: foreground `hub-dev` или macOS `launchd`;
-- docs-site через HTTP `HEAD` на `http://localhost:4321/`;
+- docs-site через HTTP-проверку lightweight path `http://localhost:4321/status/`;
 - repository health через `rag.health.run_healthcheck`;
 - project configs и source discovery;
 - generated context и generated project pages;
@@ -47,8 +47,9 @@ Foreground supervisor:
 - выполняет `scripts/generate-project-pages` перед стартом;
 - запускает docs-site через `scripts/docs-npm run dev -- --host 0.0.0.0 --port 4321`;
 - запускает watcher через `scripts/watch-project --all`;
+- запускает local fix action server через `scripts/fix-server` на `127.0.0.1:4322`;
 - префиксует logs как `[docs]` и `[watch]`;
-- проверяет, что docs-site поднялся;
+- проверяет, что docs-site начал слушать TCP на `localhost:4321`;
 - пишет heartbeat/status file;
 - останавливает дочерние процессы при `Ctrl+C`, `SIGTERM` или падении child process.
 
@@ -94,7 +95,7 @@ Persistent service не устанавливается автоматическ�
 `/status/` вызывает `/api/hub-status.json`, а endpoint запускает:
 
 ```sh
-python3.11 scripts/hub-status --json
+python3.11 scripts/hub-status --json --docs-site-self-ok
 ```
 
-Dashboard является read-only: он не стартует, не останавливает и не перезапускает runtime.
+Dashboard может запускать allowlisted fix actions через `http://127.0.0.1:4322/apply-fix`. Runtime actions ограничены `launchd` supervisor, а RAG action `rag.reindex` работает только в одном project namespace.
