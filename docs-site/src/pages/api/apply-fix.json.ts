@@ -1,6 +1,13 @@
 import type { APIRoute } from 'astro';
 
-const actions = ['docs-site.restart', 'rag.reindex', 'runtime.install-start', 'runtime.start'];
+const actions = [
+  'codebase-memory.index',
+  'docs-site.restart',
+  'generated.refresh',
+  'rag.reindex',
+  'runtime.install-start',
+  'runtime.start'
+];
 
 export const GET: APIRoute = async () =>
   new Response(

@@ -1,7 +1,7 @@
 PYTHON ?= python3.11
 PROJECT ?= example-project
 
-.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write logs clean-cache validate-configs
+.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -83,6 +83,16 @@ mcp-dev:
 
 mcp-test:
 	$(PYTHON) scripts/mcp-test
+
+codebase-memory-install:
+	mkdir -p storage/runtime/bin
+	curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --standard --dir="$(CURDIR)/storage/runtime/bin" --skip-config
+
+codebase-memory-status:
+	$(PYTHON) scripts/codebase-memory status --project "$(PROJECT)"
+
+codebase-memory-index:
+	$(PYTHON) scripts/codebase-memory index --project "$(PROJECT)" --mode moderate
 
 healthcheck:
 	$(PYTHON) scripts/healthcheck

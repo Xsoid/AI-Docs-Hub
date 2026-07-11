@@ -40,6 +40,8 @@ python3.11 scripts/hub-status --json --docs-site-self-ok
 
 Dashboard может запускать только заранее разрешенные fix-действия через кнопку пользователя. Endpoint не принимает произвольные shell-команды и не редактирует source-документацию подключенных проектов.
 
+После нажатия fix-кнопки панель `Операции` остается видимой до следующего запуска и показывает action/project, этап `Запуск` → `В очереди` → `Выполняется` → `Готово` или `Ошибка`, progress indicator, job id, elapsed time и итоговое сообщение. Активная кнопка получает spinner, а остальные fix-кнопки временно блокируются. После успеха dashboard автоматически обновляет component status, не скрывая итог операции.
+
 Fix API:
 
 ```text
@@ -78,9 +80,16 @@ storage/logs/apply-fix-*.log
 - `Настройки` - repository healthcheck;
 - `Поиск по документам` - Lite RAG;
 - `Связь с Codex` - MCP bridge;
+- `Граф исходного кода` - Codebase Memory;
 - `Автообновление` - watcher heartbeat.
 
-Для `Поиск по документам` dashboard показывает кнопку переиндексации у project rows со статусом `missing`, `stale` или `error`, если project config валиден. Кнопка запускает `rag.reindex` для одного project namespace через локальный fix server.
+Для `Поиск по документам` dashboard всегда показывает `Актуализировать` у существующего project index, а для `missing` или `error` — `Собрать индекс`. Кнопка запускает `rag.reindex` для одного project namespace через локальный fix server и не обходит secret scan.
+
+Карточка `Проекты` показывает для каждого проекта подключения к Docs RAG, Generated context и Code graph. Для отсутствующих подключений доступны allowlisted кнопки:
+
+- `rag.reindex` - собрать или актуализировать docs index;
+- `generated.refresh` - пересобрать project pages и `llms*.txt`;
+- `codebase-memory.index` - создать project-owned `.cbmignore`, если его нет, и построить moderate code graph с `persistence=false`.
 
 Для `Веб-страница` и runtime dashboard может показать кнопку restart/start persistent runtime через `launchd`, когда проблема видна из status JSON и dashboard сам остается доступен.
 

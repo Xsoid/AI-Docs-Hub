@@ -87,6 +87,8 @@ Readiness считает:
 
 Documentation readiness recommendations не являются operational health failure.
 
+Documentation lint проверяет duplicate headings по реальным Markdown heading lines внутри indexed text. Повторение одного `heading` в metadata нескольких RAG chunks длинного раздела не является duplicate heading.
+
 ## Change Notes
 
 Добавляйте файл в `docs/changes/`, когда изменение влияет на usage, operations, debugging или extension.

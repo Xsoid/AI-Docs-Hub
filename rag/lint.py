@@ -266,22 +266,24 @@ def _check_frontmatter(index: dict[str, Any]) -> list[dict[str, Any]]:
 def _check_duplicate_headings(index: dict[str, Any]) -> list[dict[str, Any]]:
     """Find duplicate headings within the same file."""
     issues: list[dict[str, Any]] = []
-    
-    # Group chunks by source_path
+
+    # Count headings present in Markdown source text. A long section may be
+    # split into several RAG chunks that intentionally share heading metadata;
+    # that derived metadata is not evidence of duplicate source headings.
     chunks_by_file: dict[str, list[str]] = {}
     for chunk in index.get("chunks", []):
         source = chunk.get("source_path", "")
-        heading = chunk.get("heading", "")
-        if source not in chunks_by_file:
-            chunks_by_file[source] = []
-        chunks_by_file[source].append(heading)
-    
-    # Find duplicates
+        if not source.lower().endswith(".md"):
+            continue
+        text = str(chunk.get("text", ""))
+        headings = re.findall(r"^#{1,6}\s+(.+?)\s*#*\s*$", text, flags=re.MULTILINE)
+        chunks_by_file.setdefault(source, []).extend(heading.strip() for heading in headings)
+
     for source_path, headings in chunks_by_file.items():
-        heading_counts = {}
+        heading_counts: dict[str, int] = {}
         for heading in headings:
             heading_counts[heading] = heading_counts.get(heading, 0) + 1
-        
+
         for heading, count in heading_counts.items():
             if count > 1 and heading.strip():
                 issues.append({

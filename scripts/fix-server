@@ -13,7 +13,14 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parents[1]
 APPLY_FIX = ROOT / "scripts" / "apply-fix"
 FIX_DIR = ROOT / "storage" / "runtime" / "fixes"
-ALLOWED_ACTIONS = {"rag.reindex", "docs-site.restart", "runtime.start", "runtime.install-start"}
+ALLOWED_ACTIONS = {
+    "rag.reindex",
+    "generated.refresh",
+    "codebase-memory.index",
+    "docs-site.restart",
+    "runtime.start",
+    "runtime.install-start",
+}
 
 
 def run_apply_fix(action: str, project: str | None) -> tuple[int, dict[str, object]]:
@@ -70,6 +77,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("access-control-allow-origin", "*")
         self.send_header("access-control-allow-methods", "GET, OPTIONS")
         self.send_header("access-control-allow-headers", "content-type")
+        self.send_header("access-control-allow-private-network", "true")
         self.send_header("content-length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)

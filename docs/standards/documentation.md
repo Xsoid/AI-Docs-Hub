@@ -101,6 +101,8 @@
 
 Documentation readiness recommendations не являются operational health failure. Они должны оставаться видимыми в `healthcheck` и project profile, но не должны переводить repository/runtime status в `degraded`, если нет реальных config warnings или errors.
 
+Documentation lint проверяет duplicate headings по реальным Markdown heading lines внутри indexed text. Повторение одного `heading` в metadata нескольких RAG chunks длинного раздела не является duplicate heading.
+
 Readiness должен считать общий documentation coverage percent и отдельное покрытие по категориям:
 
 - `core` - обзор, правила агента, архитектура, модули, решения, API, деплой и glossary;

@@ -285,6 +285,66 @@ const title = 'Статус AI Docs Hub';
         background: var(--green-bg);
       }
 
+      .operation-panel {
+        display: none;
+        gap: 9px;
+        margin-top: 16px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-2);
+      }
+
+      .operation-panel[data-visible="true"] { display: grid; }
+      .operation-panel[data-state="ok"] { border-color: #9ed6bd; background: var(--green-bg); }
+      .operation-panel[data-state="error"] { border-color: #e4aaa5; background: var(--red-bg); }
+
+      .operation-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .operation-message,
+      .operation-meta {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+      }
+
+      .operation-progress {
+        overflow: hidden;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(102, 112, 118, 0.18);
+      }
+
+      .operation-progress span {
+        display: block;
+        width: 12%;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--blue);
+        transition: width 240ms ease;
+      }
+
+      .operation-panel[data-state="running"] .operation-progress span {
+        animation: operation-pulse 1.2s ease-in-out infinite alternate;
+      }
+
+      .operation-panel[data-state="ok"] .operation-progress span { width: 100%; background: var(--green); }
+      .operation-panel[data-state="error"] .operation-progress span { width: 100%; background: var(--red); }
+
+      @keyframes operation-pulse {
+        from { width: 24%; }
+        to { width: 78%; }
+      }
+
       .command-box {
         margin-top: 16px;
         display: grid;
@@ -488,6 +548,21 @@ const title = 'Статус AI Docs Hub';
         cursor: progress;
       }
 
+      .fix-button[aria-busy="true"]::before {
+        content: "";
+        width: 12px;
+        height: 12px;
+        margin-right: 6px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: button-spin 0.8s linear infinite;
+      }
+
+      @keyframes button-spin {
+        to { transform: rotate(360deg); }
+      }
+
       .footer {
         display: flex;
         align-items: center;
@@ -596,6 +671,15 @@ const title = 'Статус AI Docs Hub';
           <ul class="action-list" id="actions">
             <li>Проверяю состояние.</li>
           </ul>
+          <div class="operation-panel" id="operationPanel" data-visible="false" data-state="idle" aria-live="polite">
+            <div class="operation-head">
+              <span id="operationTitle">Операция</span>
+              <span id="operationState">Ожидание</span>
+            </div>
+            <p class="operation-message" id="operationMessage">Операция еще не запускалась.</p>
+            <div class="operation-progress" aria-hidden="true"><span id="operationProgress"></span></div>
+            <p class="operation-meta" id="operationMeta"></p>
+          </div>
           <div class="command-box" aria-label="Основные команды">
             <div class="command"><code>make hub-status</code></div>
             <div class="command"><code>make hub-logs</code></div>
@@ -652,6 +736,10 @@ const title = 'Статус AI Docs Hub';
         mcp: {
           title: 'Связь с Codex',
           description: 'Проверяет локальный MCP-мост и список доступных tools.'
+        },
+        'codebase-memory': {
+          title: 'Граф исходного кода',
+          description: 'Показывает локальный Codebase Memory, его версию и project-scoped графы кода.'
         },
         watcher: {
           title: 'Автообновление',
@@ -768,7 +856,7 @@ const title = 'Статус AI Docs Hub';
 
       function appendComponentDetails(name, article, details) {
         if (name === 'projects') {
-          appendProjectRows(article, details.projects, projectConfigBadge, projectConfigMeta);
+          appendProjectRows(article, details.projects, projectConfigBadge, projectConfigMeta, projectConnectionFixes);
         } else if (name === 'generated') {
           appendProjectRows(article, details.projects, generatedBadge, generatedMeta);
         } else if (name === 'rag') {
@@ -777,7 +865,22 @@ const title = 'Статус AI Docs Hub';
           appendProjectRows(article, details.projects, mkdocsBadge, mkdocsMeta);
         } else if (name === 'docs-readiness') {
           appendProjectRows(article, details.projects, docsReadinessBadge, docsReadinessMeta);
+        } else if (name === 'codebase-memory') {
+          appendProjectRows(article, details.projects, codebaseMemoryBadge, codebaseMemoryMeta);
         }
+      }
+
+      function codebaseMemoryBadge(project) {
+        if (project.status === 'indexed') return { text: 'indexed', kind: 'ok' };
+        return { text: project.status || 'unknown', kind: 'warning' };
+      }
+
+      function codebaseMemoryMeta(project) {
+        return [
+          `nodes: ${project.nodes ?? 0}`,
+          `edges: ${project.edges ?? 0}`,
+          project.root ? `root: ${project.root}` : ''
+        ];
       }
 
       function mkdocsBadge(project) {
@@ -806,14 +909,30 @@ const title = 'Статус AI Docs Hub';
       }
 
       function projectConfigMeta(project) {
+        const connections = Array.isArray(project.connections) ? project.connections : [];
+        const connectionText = connections.map((item) =>
+          `${item.label}: ${item.status === 'connected' ? 'подключён' : item.status === 'attention' ? 'требует внимания' : 'не подключён'}`
+        );
         return [
           `namespace: ${project.namespace || project.project}`,
           `backend: ${project.docs_backend || 'unknown'}`,
           `include: ${project.effective_include_count ?? project.include_count ?? 0}`,
           `exclude: ${project.effective_exclude_count ?? 0}`,
           `agent rules: ${project.agent_rules_count ?? 0}`,
-          project.recommendations_count ? `docs recommendations: ${project.recommendations_count}` : ''
+          project.recommendations_count ? `docs recommendations: ${project.recommendations_count}` : '',
+          ...connectionText
         ];
+      }
+
+      function projectConnectionFixes(project) {
+        const connections = Array.isArray(project.connections) ? project.connections : [];
+        return connections
+          .filter((item) => item.action)
+          .map((item) => ({
+            action: item.action,
+            project: project.project,
+            label: item.action_label || `Подключить ${item.label}`
+          }));
       }
 
       function generatedBadge(project) {
@@ -861,11 +980,17 @@ const title = 'Статус AI Docs Hub';
 
       function ragProjectFixes(project) {
         if (project.status === 'blocked') return [];
+        if (project.status === 'security_skipped' || project.secret_blocked_count) {
+          return [{ action: 'rag.reindex', project: project.project, label: 'Актуализировать' }];
+        }
         if (project.stale || project.status === 'stale') {
           return [{ action: 'rag.reindex', project: project.project, label: 'Переиндексировать' }];
         }
         if (!project.indexed && ['missing', 'error'].includes(project.status || '')) {
           return [{ action: 'rag.reindex', project: project.project, label: 'Собрать индекс' }];
+        }
+        if (project.indexed) {
+          return [{ action: 'rag.reindex', project: project.project, label: 'Актуализировать' }];
         }
         return [];
       }
@@ -1018,6 +1143,7 @@ const title = 'Статус AI Docs Hub';
           'mkdocs',
           'docs-readiness',
           'mcp',
+          'codebase-memory',
           'watcher'
         ]) {
           grid.append(componentCard(name, components[name] || { status: 'warning', message: 'Нет данных.' }));
@@ -1026,6 +1152,12 @@ const title = 'Статус AI Docs Hub';
 
       const refreshButton = document.getElementById('refresh');
       const apiPath = document.getElementById('apiPath');
+      const operationPanel = document.getElementById('operationPanel');
+      const operationTitle = document.getElementById('operationTitle');
+      const operationState = document.getElementById('operationState');
+      const operationMessage = document.getElementById('operationMessage');
+      const operationMeta = document.getElementById('operationMeta');
+      const operationProgress = document.getElementById('operationProgress');
       const apiLabel = 'Источник: /api/hub-status.json';
       const fixApiBase = 'http://127.0.0.1:4322';
       let refreshInFlight = false;
@@ -1074,7 +1206,40 @@ const title = 'Статус AI Docs Hub';
         return 'fix action';
       }
 
-      async function pollFixJob(jobId, attempt = 0) {
+      function actionTitle(action) {
+        const titles = {
+          'codebase-memory.index': 'Подключение Code graph',
+          'generated.refresh': 'Сборка generated context',
+          'rag.reindex': 'Актуализация Docs RAG',
+          'docs-site.restart': 'Перезапуск docs-site',
+          'runtime.start': 'Запуск runtime',
+          'runtime.install-start': 'Установка и запуск runtime'
+        };
+        return titles[action] || action;
+      }
+
+      function showOperation({ action, project, state, message, jobId = '', startedAt = Date.now() }) {
+        const labels = {
+          starting: 'Запуск',
+          queued: 'В очереди',
+          running: 'Выполняется',
+          ok: 'Готово',
+          error: 'Ошибка'
+        };
+        operationPanel.dataset.visible = 'true';
+        operationPanel.dataset.state = state;
+        operationTitle.textContent = `${actionTitle(action)}${project ? ` · ${project}` : ''}`;
+        operationState.textContent = labels[state] || state;
+        operationMessage.textContent = message;
+        const elapsed = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+        operationMeta.textContent = [jobId ? `job: ${jobId}` : '', `прошло: ${elapsed} сек.`]
+          .filter(Boolean)
+          .join(' · ');
+        operationProgress.style.width = state === 'starting' ? '12%' : state === 'queued' ? '20%' : '';
+      }
+
+      async function pollFixJob(operation, attempt = 0) {
+        const { jobId, action, project, startedAt } = operation;
         let response;
         let payload;
         try {
@@ -1085,31 +1250,47 @@ const title = 'Статус AI Docs Hub';
         } catch (error) {
           if (attempt < 60) {
             apiPath.textContent = `Жду результат исправления: ${jobId}`;
+            showOperation({ action, project, state: 'running', message: 'Fix server временно недоступен, повторяю проверку…', jobId, startedAt });
             await new Promise((resolve) => window.setTimeout(resolve, 2000));
-            return pollFixJob(jobId, attempt + 1);
+            return pollFixJob(operation, attempt + 1);
           }
           throw error;
         }
         if (!response.ok && attempt < 60) {
           apiPath.textContent = `Жду результат исправления: ${jobId}`;
+          showOperation({ action, project, state: 'running', message: `Fix server ответил HTTP ${response.status}; повторяю проверку…`, jobId, startedAt });
           await new Promise((resolve) => window.setTimeout(resolve, 2000));
-          return pollFixJob(jobId, attempt + 1);
+          return pollFixJob(operation, attempt + 1);
         }
         if (['queued', 'running'].includes(payload.status) && attempt < 60) {
           apiPath.textContent = `Исправление выполняется: ${jobId}`;
+          showOperation({
+            action,
+            project,
+            state: payload.status === 'queued' ? 'queued' : 'running',
+            message: payload.status === 'queued' ? 'Задача поставлена в очередь.' : 'Индексирование и проверка выполняются…',
+            jobId,
+            startedAt
+          });
           await new Promise((resolve) => window.setTimeout(resolve, 2000));
-          return pollFixJob(jobId, attempt + 1);
+          return pollFixJob(operation, attempt + 1);
         }
         if (payload.status === 'ok') {
           apiPath.textContent = `Исправление выполнено: ${fixMessage(payload)}`;
-          refresh();
+          showOperation({ action, project, state: 'ok', message: fixMessage(payload), jobId, startedAt });
+          await refresh();
           return;
         }
         throw new Error(fixMessage(payload));
       }
 
-      function showFixError(error) {
+      function showFixError(error, operation) {
         apiPath.textContent = `Ошибка исправления: ${error instanceof Error ? error.message : 'неизвестная ошибка'}`;
+        showOperation({
+          ...operation,
+          state: 'error',
+          message: error instanceof Error ? error.message : 'Неизвестная ошибка'
+        });
         fixInFlight = false;
         setFixButtonsDisabled(false);
       }
@@ -1119,9 +1300,12 @@ const title = 'Статус AI Docs Hub';
         fixInFlight = true;
         setFixButtonsDisabled(true);
         const originalText = button.textContent;
-        button.textContent = 'Запускаю...';
         const action = button.dataset.fixAction;
         const project = button.dataset.fixProject;
+        const operation = { action, project, startedAt: Date.now() };
+        button.textContent = 'Выполняется...';
+        button.setAttribute('aria-busy', 'true');
+        showOperation({ ...operation, state: 'starting', message: 'Отправляю команду локальному fix server…' });
         try {
           const params = new URLSearchParams({ action });
           if (project) params.set('project', project);
@@ -1132,14 +1316,18 @@ const title = 'Статус AI Docs Hub';
           if (!response.ok || payload.status === 'error') throw new Error(fixMessage(payload));
           apiPath.textContent = `Исправление запущено: ${fixMessage(payload)}`;
           if (payload.job_id) {
-            await pollFixJob(payload.job_id);
+            operation.jobId = payload.job_id;
+            showOperation({ ...operation, state: 'queued', message: 'Задача принята и поставлена в очередь.' });
+            await pollFixJob(operation);
           } else {
-            refresh();
+            showOperation({ ...operation, state: 'ok', message: fixMessage(payload) });
+            await refresh();
           }
         } catch (error) {
-          showFixError(error);
+          showFixError(error, operation);
         } finally {
           button.textContent = originalText;
+          button.removeAttribute('aria-busy');
           fixInFlight = false;
           setFixButtonsDisabled(false);
         }
@@ -1153,7 +1341,9 @@ const title = 'Статус AI Docs Hub';
         applyFix(button);
       });
       refresh();
-      window.setInterval(refresh, 5000);
+      window.setInterval(() => {
+        if (!fixInFlight) refresh();
+      }, 5000);
     </script>
   </body>
 </html>

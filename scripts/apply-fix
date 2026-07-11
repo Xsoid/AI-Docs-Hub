@@ -20,11 +20,13 @@ LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / "local.ai-docs-h
 
 ACTION_DESCRIPTIONS = {
     "rag.reindex": "Reindex one project namespace and regenerate generated context.",
+    "generated.refresh": "Regenerate project pages and generated LLM context.",
+    "codebase-memory.index": "Prepare the project safety ignore file and build its code graph.",
     "docs-site.restart": "Restart the persistent docs-site runtime through launchd.",
     "runtime.start": "Start the persistent AI Docs Hub launchd runtime.",
     "runtime.install-start": "Install and start the persistent AI Docs Hub launchd runtime.",
 }
-PROJECT_ACTIONS = {"rag.reindex"}
+PROJECT_ACTIONS = {"rag.reindex", "generated.refresh", "codebase-memory.index"}
 JOB_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -151,6 +153,56 @@ def action_rag_reindex(project: str | None) -> dict[str, Any]:
     }
 
 
+def action_generated_refresh(project: str | None) -> dict[str, Any]:
+    validate_project(project)
+    pages_result = command_result([sys.executable, str(ROOT / "scripts" / "generate-project-pages")], timeout=180)
+    require_ok(pages_result, "failed to regenerate project pages")
+    llms_result = command_result([sys.executable, str(ROOT / "scripts" / "generate-llms")], timeout=180)
+    require_ok(llms_result, "failed to regenerate generated context")
+    return {
+        "status": "ok",
+        "message": f"refreshed generated context for {project}",
+        "project": project,
+        "commands": [pages_result, llms_result],
+    }
+
+
+def action_codebase_memory_index(project: str | None) -> dict[str, Any]:
+    config = validate_project(project)
+    assert project is not None
+    ignore_path = config.root / ".cbmignore"
+    created_ignore = False
+    if not ignore_path.exists():
+        ignore_path.write_text(
+            "# Codebase Memory safety boundary managed by AI Docs Hub.\n"
+            ".env\n.env.*\n**/.env\n**/.env.*\n"
+            "**/*secret*\n**/*token*\n**/*password*\n**/*credential*\n"
+            "**/*cookie*\n**/*session*\n**/*dump*\n"
+            "**/*.key\n**/*.pem\n**/*.p12\n**/*.pfx\n"
+            "storage/\ncache/\ntmp/\nlogs/\n*.sqlite\n*.sqlite3\n*.db\n*.db-*\n",
+            encoding="utf-8",
+        )
+        created_ignore = True
+    index_result = command_result(
+        [sys.executable, str(ROOT / "scripts" / "codebase-memory"), "index", "--project", project, "--mode", "moderate"],
+        timeout=900,
+    )
+    require_ok(index_result, f"failed to index Codebase Memory graph for {project}")
+    status_result = command_result(
+        [sys.executable, str(ROOT / "scripts" / "codebase-memory"), "status", "--project", project],
+        timeout=30,
+    )
+    require_ok(status_result, f"failed to refresh Codebase Memory status for {project}")
+    return {
+        "status": "ok",
+        "message": f"indexed Codebase Memory graph for {project}",
+        "project": project,
+        "created_ignore": created_ignore,
+        "ignore_path": str(ignore_path),
+        "commands": [index_result, status_result],
+    }
+
+
 def action_launchd(command: str) -> dict[str, Any]:
     if sys.platform != "darwin":
         raise FixError("launchd fixes are available only on macOS")
@@ -188,6 +240,10 @@ def run_action(action: str, project: str | None) -> dict[str, Any]:
 
     if action == "rag.reindex":
         return action_rag_reindex(project)
+    if action == "generated.refresh":
+        return action_generated_refresh(project)
+    if action == "codebase-memory.index":
+        return action_codebase_memory_index(project)
     if action == "docs-site.restart":
         return action_launchd("restart")
     if action == "runtime.start":

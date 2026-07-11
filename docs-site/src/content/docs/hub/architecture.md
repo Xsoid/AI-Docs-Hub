@@ -17,12 +17,15 @@ AI Docs Hub - локальный инфраструктурный репозит
 - MkDocs adapter: read-only structural discovery для проектов с `mkdocs.yml` или `mkdocs.yaml`.
 - Lite JSON/BM25 RAG: локальная индексация и поиск по разрешенной документации проектов, хранение в `storage/index`.
 - MCP stdio bridge: `mcp/server.py` отдает project-scoped tools для Codex и других MCP clients.
+- Optional Codebase Memory sidecar: отдельный MCP/CLI строит project-scoped SQLite graph исходного кода для symbols, calls, dependencies и impact analysis. Его cache живет в ignored `storage/codebase-memory`; docs RAG и Markdown ADR остаются независимыми source layers.
 - Local runtime: `scripts/hub-dev` супервизирует docs-site, watcher и local fix action server в foreground.
 - macOS `launchd`: optional persistent supervisor для того же `hub-dev`.
 - macOS menu bar app: optional Swift/AppKit wrapper для быстрого доступа к status/dashboard.
 - Generated artifacts: `storage/generated`, `docs-site/public/llms*.txt`, `docs-site/src/content/docs/projects/*`, runtime heartbeats, logs и indexes.
 
 Docker, RAGFlow, external vector databases, cloud search и remote LLM APIs не входят в default working stack.
+
+Codebase Memory не является default dependency: Hub остается работоспособным без него, а status показывает sidecar как optional component.
 
 ## Docs-As-Code
 

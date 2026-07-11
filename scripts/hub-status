@@ -36,6 +36,9 @@ GENERATED_DIR = ROOT / "storage" / "generated"
 DOCS_PUBLIC_DIR = ROOT / "docs-site" / "public"
 PROJECT_PAGES_DIR = ROOT / "docs-site" / "src" / "content" / "docs" / "projects"
 LLMS_FILES = ("llms.txt", "llms-full.txt", "llms-small.txt")
+CODEBASE_MEMORY_BINARY = ROOT / "storage" / "runtime" / "bin" / "codebase-memory-mcp"
+CODEBASE_MEMORY_CACHE = ROOT / "storage" / "codebase-memory"
+CODEBASE_MEMORY_STATUS_DIR = ROOT / "storage" / "runtime" / "codebase-memory"
 
 
 @dataclass
@@ -744,17 +747,25 @@ def check_generated_context() -> Component:
     if report_error:
         missing.append(f"{rel_to_root(report_path)} ({report_error})")
 
+    report_warnings = (report or {}).get("warnings", []) if isinstance(report, dict) else []
+    skipped_projects = {
+        str(item.get("project"))
+        for item in report_warnings
+        if isinstance(item, dict) and item.get("skipped") and item.get("project")
+    }
     projects: list[dict[str, Any]] = []
     for config in real_project_configs():
         page = PROJECT_PAGES_DIR / config.project / "overview.md"
         exists = page.exists() and page.is_file()
+        context_included = config.project not in skipped_projects
         if not exists:
             missing.append(rel_to_root(page))
         projects.append(
             {
                 "project": config.project,
-                "status": "generated" if exists else "missing",
+                "status": "generated" if exists and context_included else "skipped" if exists else "missing",
                 "page_exists": exists,
+                "context_included": context_included,
                 "path": rel_to_root(page),
             }
         )
@@ -778,6 +789,75 @@ def check_generated_context() -> Component:
             "missing": missing,
         },
     )
+
+
+def attach_project_connections(
+    projects_component: Component,
+    generated_component: Component,
+    rag_component: Component,
+    codebase_component: Component,
+) -> None:
+    project_rows = (projects_component.details or {}).get("projects", [])
+    generated_rows = {
+        item.get("project"): item
+        for item in (generated_component.details or {}).get("projects", [])
+        if isinstance(item, dict)
+    }
+    rag_rows = {
+        item.get("project"): item
+        for item in (rag_component.details or {}).get("projects", [])
+        if isinstance(item, dict)
+    }
+    codebase_rows = {
+        item.get("project"): item
+        for item in (codebase_component.details or {}).get("projects", [])
+        if isinstance(item, dict)
+    }
+    for project in project_rows:
+        name = project.get("project")
+        rag = rag_rows.get(name, {})
+        generated = generated_rows.get(name, {})
+        codebase = codebase_rows.get(name, {})
+        connections: list[dict[str, Any]] = []
+
+        rag_status = str(rag.get("status", "missing"))
+        rag_connected = bool(rag.get("indexed")) and rag_status == "indexed"
+        connections.append(
+            {
+                "component": "docs-rag",
+                "label": "Docs RAG",
+                "status": "connected" if rag_connected else "attention" if rag.get("indexed") else "missing",
+                "action": "" if rag_connected else "rag.reindex",
+                "action_label": "Актуализировать" if rag.get("indexed") else "Подключить RAG",
+            }
+        )
+
+        generated_connected = bool(generated.get("page_exists")) and bool(generated.get("context_included"))
+        connections.append(
+            {
+                "component": "generated-context",
+                "label": "Generated context",
+                "status": "connected" if generated_connected else "missing",
+                "action": "" if generated_connected else "generated.refresh",
+                "action_label": "Собрать context",
+            }
+        )
+
+        codebase_connected = codebase.get("status") == "indexed"
+        connections.append(
+            {
+                "component": "codebase-memory",
+                "label": "Code graph",
+                "status": "connected" if codebase_connected else "missing",
+                "action": "" if codebase_connected else "codebase-memory.index",
+                "action_label": "Подключить graph",
+            }
+        )
+        project["connections"] = connections
+        project["connected_components_count"] = len(
+            [item for item in connections if item.get("status") == "connected"]
+        )
+        project["components_count"] = len(connections)
 
 
 def check_mcp(timeout: float) -> Component:
@@ -845,6 +925,87 @@ def check_mcp(timeout: float) -> Component:
         "ok",
         f"{len(tools)} tools available",
         details={"tool_count": len(tools), "stderr": result.stderr},
+    )
+
+
+def check_codebase_memory(timeout: float) -> Component:
+    if not CODEBASE_MEMORY_BINARY.exists():
+        return Component(
+            "codebase-memory",
+            "warning",
+            "Codebase Memory binary is not installed",
+            required=False,
+            details={
+                "binary": rel_to_root(CODEBASE_MEMORY_BINARY),
+                "cache_dir": rel_to_root(CODEBASE_MEMORY_CACHE),
+                "next_step": "make codebase-memory-install",
+            },
+        )
+
+    env = os.environ.copy()
+    env["CBM_CACHE_DIR"] = str(CODEBASE_MEMORY_CACHE)
+    try:
+        version_result = subprocess.run(
+            [str(CODEBASE_MEMORY_BINARY), "--version"],
+            cwd=str(ROOT),
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return Component(
+            "codebase-memory",
+            "warning",
+            f"Codebase Memory probe failed: {exc}",
+            required=False,
+        )
+
+    version = (version_result.stdout or version_result.stderr).strip()
+    if version_result.returncode != 0:
+        error = (version_result.stderr or version_result.stdout).strip()
+        return Component(
+            "codebase-memory",
+            "warning",
+            error or "Codebase Memory CLI probe failed",
+            required=False,
+            details={"version": version, "binary": rel_to_root(CODEBASE_MEMORY_BINARY)},
+        )
+    normalized: list[dict[str, Any]] = []
+    snapshot_errors: list[str] = []
+    for snapshot_path in sorted(CODEBASE_MEMORY_STATUS_DIR.glob("*.status.json")):
+        snapshot, snapshot_error = read_json_file(snapshot_path)
+        if snapshot_error or snapshot is None:
+            snapshot_errors.append(f"{rel_to_root(snapshot_path)}: {snapshot_error}")
+            continue
+        index = snapshot.get("index", {}) if isinstance(snapshot.get("index"), dict) else {}
+        normalized.append(
+            {
+                "project": snapshot.get("project") or snapshot_path.name.removesuffix(".status.json"),
+                "status": snapshot.get("status", "unknown"),
+                "nodes": index.get("nodes", 0),
+                "edges": index.get("edges", 0),
+                "root": snapshot.get("root"),
+            }
+        )
+    status = "ok" if normalized and not snapshot_errors else "warning"
+    message = f"{version}, {len(normalized)} project graph(s)" if normalized else f"{version}, no project graphs"
+    return Component(
+        "codebase-memory",
+        status,
+        message,
+        required=False,
+        details={
+            "version": version,
+            "binary": rel_to_root(CODEBASE_MEMORY_BINARY),
+            "cache_dir": rel_to_root(CODEBASE_MEMORY_CACHE),
+            "projects": normalized,
+            "snapshot_errors": snapshot_errors,
+            "auto_index": False,
+            "persistence": False,
+        },
     )
 
 
@@ -959,16 +1120,21 @@ def main() -> int:
     args = parser.parse_args()
 
     repository, rag = check_repository_and_rag()
+    projects = check_project_configs()
+    generated = check_generated_context()
+    codebase_memory = check_codebase_memory(timeout=args.timeout)
+    attach_project_connections(projects, generated, rag, codebase_memory)
     components = [
         check_runtime(stale_after=args.watcher_stale_after),
         check_docs_site_from_api(args.url) if args.docs_site_self_ok else check_docs_site(args.url, timeout=args.timeout),
         repository,
-        check_project_configs(),
-        check_generated_context(),
+        projects,
+        generated,
         rag,
         check_mkdocs(),
         check_documentation_readiness(),
         check_mcp(timeout=args.timeout),
+        codebase_memory,
         check_watcher(stale_after=args.watcher_stale_after),
     ]
     overall, exit_code = overall_status(components)

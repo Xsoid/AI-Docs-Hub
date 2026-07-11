@@ -13,6 +13,7 @@ Generated artifacts являются производными от docs-as-code 
 - `storage/runtime/*`;
 - `storage/logs/*`;
 - `build/AI Docs Hub.app`.
+- `storage/runtime/bin/codebase-memory-mcp` и `storage/codebase-memory/*`.
 
 ## Правила
 

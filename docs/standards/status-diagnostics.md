@@ -15,11 +15,14 @@ Status diagnostics должны показывать operational failures отд
 - `mkdocs` - adapter state;
 - `docs-readiness` - coverage/recommendations;
 - `mcp` - stdio MCP tool listing and healthcheck;
+- `codebase-memory` - optional binary/version, local cache и indexed code graphs;
 - `watcher` - heartbeat and child process state.
 
 ## Required Vs Optional
 
 Required components define `DOWN`. Optional components can define `DEGRADED`.
+
+`codebase-memory` является optional: отсутствующий binary, недоступный CLI или отсутствие графов дает warning/`DEGRADED`, но не `DOWN`.
 
 Documentation readiness gaps are recommendations. Они должны оставаться видимыми, но не должны переводить repository/runtime status в degraded сами по себе.
 
@@ -48,6 +51,8 @@ Dashboard использует этот endpoint как source data.
 Dashboard может показывать кнопки исправления только для allowlisted operational actions:
 
 - `rag.reindex` - переиндексировать конкретный project namespace через `scripts/index-project --reindex` и затем регенерировать `llms*.txt`;
+- `generated.refresh` - пересобрать generated project pages и `llms*.txt`;
+- `codebase-memory.index` - после явного нажатия подготовить project-owned `.cbmignore` и построить scoped code graph;
 - `docs-site.restart` - перезапустить persistent runtime через `scripts/hub-launchd restart`;
 - `runtime.start` - запустить уже установленный LaunchAgent;
 - `runtime.install-start` - установить и запустить LaunchAgent после явного нажатия пользователя.
@@ -67,3 +72,5 @@ scripts/apply-fix
 ```
 
 Endpoint не принимает произвольные команды. Project-scoped actions должны валидировать project config, сохранять namespace isolation и проходить обычные exclude/secret-scan правила indexing.
+
+Project details включают connection matrix для `docs-rag`, `generated-context` и `codebase-memory` со статусами `connected`, `attention` или `missing` и только allowlisted action для исправимого состояния.
