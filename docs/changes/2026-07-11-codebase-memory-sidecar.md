@@ -13,3 +13,5 @@ Lite RAG, docs-as-code и Markdown ADR остаются source-of-truth слоя
 Dashboard также получил project connection matrix и allowlisted actions для Docs RAG, Generated context и Codebase Memory. `security_skipped` RAG rows теперь показывают кнопку безопасной актуализации без обхода secret scan.
 
 Fix workflow визуализирует весь lifecycle локальной job: запуск, очередь, выполнение, повторные polls, завершение или ошибку. Панель операции сохраняет job id, elapsed time и итог после автоматического refresh статуса.
+
+Code graph onboarding теперь считается полным только при наличии index, отдельного project-scoped MCP и managed routing rules в project `AGENTS.md`. Existing graph-only подключения автоматически мигрированы через идемпотентный action; Codex требует перезапуска для загрузки новых MCP servers.

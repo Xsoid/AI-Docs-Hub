@@ -73,4 +73,4 @@ scripts/apply-fix
 
 Endpoint не принимает произвольные команды. Project-scoped actions должны валидировать project config, сохранять namespace isolation и проходить обычные exclude/secret-scan правила indexing.
 
-Project details включают connection matrix для `docs-rag`, `generated-context` и `codebase-memory` со статусами `connected`, `attention` или `missing` и только allowlisted action для исправимого состояния.
+Project details включают connection matrix для `docs-rag`, `generated-context` и `codebase-memory` со статусами `connected`, `attention` или `missing` и только allowlisted action для исправимого состояния. Codebase details дополнительно возвращают `mcp_configured`, `agent_rules_installed` и `fully_connected`; один graph index без agent onboarding не считается полным подключением.

@@ -843,14 +843,19 @@ def attach_project_connections(
             }
         )
 
-        codebase_connected = codebase.get("status") == "indexed"
+        graph_indexed = codebase.get("status") == "indexed"
+        codebase_connected = graph_indexed and bool(codebase.get("fully_connected"))
+        codebase_status = "connected" if codebase_connected else "attention" if graph_indexed else "missing"
         connections.append(
             {
                 "component": "codebase-memory",
                 "label": "Code graph",
-                "status": "connected" if codebase_connected else "missing",
+                "status": codebase_status,
                 "action": "" if codebase_connected else "codebase-memory.index",
-                "action_label": "Подключить graph",
+                "action_label": "Завершить подключение" if graph_indexed else "Подключить graph",
+                "graph_indexed": graph_indexed,
+                "mcp_configured": bool(codebase.get("mcp_configured")),
+                "agent_rules_installed": bool(codebase.get("agent_rules_installed")),
             }
         )
         project["connections"] = connections
@@ -988,6 +993,10 @@ def check_codebase_memory(timeout: float) -> Component:
                 "nodes": index.get("nodes", 0),
                 "edges": index.get("edges", 0),
                 "root": snapshot.get("root"),
+                "mcp_server": snapshot.get("mcp_server"),
+                "mcp_configured": bool(snapshot.get("mcp_configured")),
+                "agent_rules_installed": bool(snapshot.get("agent_rules_installed")),
+                "fully_connected": bool(snapshot.get("fully_connected")),
             }
         )
     status = "ok" if normalized and not snapshot_errors else "warning"

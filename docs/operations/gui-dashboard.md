@@ -91,6 +91,8 @@ storage/logs/apply-fix-*.log
 - `generated.refresh` - пересобрать project pages и `llms*.txt`;
 - `codebase-memory.index` - создать project-owned `.cbmignore`, если его нет, и построить moderate code graph с `persistence=false`.
 
+Code graph считается подключенным только при `graph indexed + project-scoped MCP configured + managed AGENTS rules installed`. Если существует только graph index, dashboard показывает `требует внимания` и кнопку `Завершить подключение`. После успешного onboarding панель операции напоминает перезапустить Codex.
+
 Для `Веб-страница` и runtime dashboard может показать кнопку restart/start persistent runtime через `launchd`, когда проблема видна из status JSON и dashboard сам остается доступен.
 
 ## Ограничения

@@ -36,6 +36,18 @@ Installer запускается с `--skip-config`, поэтому он не м
 
 Индексирование explicit-only: `auto_index=false`, `auto_watch=false`. Wrapper разрешает режимы `fast`, `moderate` и `full`, но штатная Make-команда использует `moderate`.
 
+## Полное Подключение Проекта
+
+Наличие SQLite graph само по себе является только частичным подключением. Состояние `connected` требует трех признаков:
+
+1. graph index существует и отвечает;
+2. в `~/.codex/config.toml` есть managed project-scoped MCP server `codebase_<project>`;
+3. в project-owned `AGENTS.md` есть managed routing rules.
+
+Allowlisted action `codebase-memory.index` выполняет весь onboarding идемпотентно: создает `.cbmignore`, если его нет, индексирует graph с `persistence=false`, upsert-ит отдельную MCP-запись и managed-блок правил агента, затем обновляет status snapshot. Старую общую запись `codebase_memory` workflow удаляет при миграции.
+
+Routing rules направляют docs/ADR/runbooks в AI Docs Hub, а symbols/calls/dependencies/routes/blast radius — в Codebase Memory. `rg` и source reads остаются fallback при неполном graph coverage. После первого подключения или изменения MCP config необходимо перезапустить Codex: уже открытая сессия не загружает новый MCP server динамически.
+
 ## Security Gate
 
 Перед индексированием в root подключенного проекта должен существовать `.cbmignore`. Wrapper проверяет обязательные exclusions для `.env`, secret/token/password/credential paths, cookies, sessions, dumps и private keys.
@@ -44,6 +56,6 @@ Installer запускается с `--skip-config`, поэтому он не м
 
 ## Status
 
-`scripts/hub-status` публикует optional component `codebase-memory` с version, cache path и найденными project graphs. `make codebase-memory-status` сохраняет ignored snapshot в `storage/runtime/codebase-memory`; dashboard читает snapshot и не конкурирует с MCP за SQLite. Отсутствие binary или графов переводит общий status в `DEGRADED`, но не в `DOWN`.
+`scripts/hub-status` публикует optional component `codebase-memory` с version, cache path, project graphs, `mcp_configured`, `agent_rules_installed` и `fully_connected`. `make codebase-memory-status` сохраняет ignored snapshot в `storage/runtime/codebase-memory`; dashboard читает snapshot и не конкурирует с MCP за SQLite. Indexed graph без MCP/rules отображается как partial/attention и предлагает `Завершить подключение`.
 
 Dashboard показывает этот компонент на `http://localhost:4321/status/` как «Граф исходного кода».

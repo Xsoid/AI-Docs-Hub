@@ -871,7 +871,8 @@ const title = 'Статус AI Docs Hub';
       }
 
       function codebaseMemoryBadge(project) {
-        if (project.status === 'indexed') return { text: 'indexed', kind: 'ok' };
+        if (project.fully_connected) return { text: 'подключён', kind: 'ok' };
+        if (project.status === 'indexed') return { text: 'частично', kind: 'warning' };
         return { text: project.status || 'unknown', kind: 'warning' };
       }
 
@@ -879,6 +880,9 @@ const title = 'Статус AI Docs Hub';
         return [
           `nodes: ${project.nodes ?? 0}`,
           `edges: ${project.edges ?? 0}`,
+          `MCP: ${project.mcp_configured ? 'настроен' : 'не настроен'}`,
+          `agent rules: ${project.agent_rules_installed ? 'установлены' : 'не установлены'}`,
+          project.fully_connected ? 'новая сессия Codex использует graph routing' : 'нужно завершить подключение',
           project.root ? `root: ${project.root}` : ''
         ];
       }

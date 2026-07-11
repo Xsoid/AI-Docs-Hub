@@ -4,8 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,9 @@ from rag.config import get_project_config  # noqa: E402
 DEFAULT_BINARY = ROOT / "storage" / "runtime" / "bin" / "codebase-memory-mcp"
 DEFAULT_CACHE_DIR = ROOT / "storage" / "codebase-memory"
 STATUS_DIR = ROOT / "storage" / "runtime" / "codebase-memory"
+CODEX_CONFIG = Path.home() / ".codex" / "config.toml"
+AGENT_RULES_BEGIN = "<!-- BEGIN AI DOCS HUB CODEBASE MEMORY -->"
+AGENT_RULES_END = "<!-- END AI DOCS HUB CODEBASE MEMORY -->"
 REQUIRED_IGNORE_PATTERNS = (
     ".env",
     ".env.*",
@@ -114,6 +119,122 @@ def project_context(project: str) -> tuple[Any, Path]:
     return config, root
 
 
+def server_name(project: str) -> str:
+    return "codebase_" + "".join(char if char.isalnum() else "_" for char in project).strip("_")
+
+
+def managed_config_markers(project: str) -> tuple[str, str]:
+    return (
+        f"# BEGIN AI DOCS HUB CODEBASE MEMORY: {project}",
+        f"# END AI DOCS HUB CODEBASE MEMORY: {project}",
+    )
+
+
+def managed_mcp_block(project: str) -> str:
+    begin, end = managed_config_markers(project)
+    name = server_name(project)
+    return (
+        f"{begin}\n"
+        f"[mcp_servers.{name}]\n"
+        f'command = "{sys.executable}"\n'
+        f'args = ["{ROOT / "mcp" / "codebase_memory_proxy.py"}", "--project", "{project}"]\n'
+        "startup_timeout_sec = 120\n\n"
+        f"[mcp_servers.{name}.env]\n"
+        f'CBM_CACHE_DIR = "{Path(runtime_env()["CBM_CACHE_DIR"])}"\n'
+        f"{end}\n"
+    )
+
+
+def replace_managed_block(text: str, begin: str, end: str, block: str) -> str:
+    pattern = re.compile(rf"(?:^|\n){re.escape(begin)}\n.*?\n{re.escape(end)}\n?", re.DOTALL)
+    cleaned = pattern.sub("\n", text).rstrip()
+    return f"{cleaned}\n\n{block}" if cleaned else block
+
+
+def remove_legacy_codebase_server(text: str) -> str:
+    legacy_headers = {"[mcp_servers.codebase_memory]", "[mcp_servers.codebase_memory.env]"}
+    output: list[str] = []
+    skipping = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            skipping = stripped in legacy_headers
+        if not skipping:
+            output.append(line)
+    return "\n".join(output).rstrip() + "\n"
+
+
+def agent_rules_block(project: str) -> str:
+    return (
+        f"{AGENT_RULES_BEGIN}\n"
+        "## Codebase Memory\n\n"
+        f"- Для этого проекта Codebase Memory используется только с project scope `{project}`.\n"
+        "- Документацию, ADR, runbooks и project policies сначала искать через AI Docs Hub.\n"
+        "- Для symbols, definitions, calls, dependencies, routes и blast radius сначала использовать Codebase Memory MCP.\n"
+        "- Обычные `rg` и чтение файлов остаются fallback, если graph coverage неполный или нужен source of truth.\n"
+        "- `manage_adr`, cross-project wildcard, `delete_project`, `ingest_traces` и repository persistence запрещены.\n"
+        "- Если документация и code graph расходятся, проверить исходный код и явно сообщить о конфликте с путями.\n"
+        "- После первого подключения или изменения MCP-конфигурации перезапустить Codex, чтобы новая сессия загрузила server tools.\n"
+        f"{AGENT_RULES_END}\n"
+    )
+
+
+def mcp_is_configured(project: str) -> bool:
+    if not CODEX_CONFIG.exists():
+        return False
+    text = CODEX_CONFIG.read_text(encoding="utf-8")
+    begin, end = managed_config_markers(project)
+    if begin not in text or end not in text:
+        return False
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return False
+    server = (data.get("mcp_servers") or {}).get(server_name(project), {})
+    expected_args = [str(ROOT / "mcp" / "codebase_memory_proxy.py"), "--project", project]
+    return bool(
+        server.get("command") == sys.executable
+        and server.get("args") == expected_args
+        and (server.get("env") or {}).get("CBM_CACHE_DIR") == str(Path(runtime_env()["CBM_CACHE_DIR"]))
+    )
+
+
+def agent_rules_are_installed(root: Path) -> bool:
+    path = root / "AGENTS.md"
+    if not path.exists():
+        return False
+    text = path.read_text(encoding="utf-8")
+    return AGENT_RULES_BEGIN in text and AGENT_RULES_END in text
+
+
+def configure_project(project: str) -> dict[str, Any]:
+    _, root = project_context(project)
+    CODEX_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    config_text = CODEX_CONFIG.read_text(encoding="utf-8") if CODEX_CONFIG.exists() else ""
+    config_text = remove_legacy_codebase_server(config_text)
+    begin, end = managed_config_markers(project)
+    CODEX_CONFIG.write_text(
+        replace_managed_block(config_text, begin, end, managed_mcp_block(project)),
+        encoding="utf-8",
+    )
+
+    agents_path = root / "AGENTS.md"
+    agents_text = agents_path.read_text(encoding="utf-8") if agents_path.exists() else f"# Agent Rules: {project}\n"
+    agents_path.write_text(
+        replace_managed_block(agents_text, AGENT_RULES_BEGIN, AGENT_RULES_END, agent_rules_block(project)),
+        encoding="utf-8",
+    )
+    return {
+        "project": project,
+        "mcp_server": server_name(project),
+        "mcp_configured": mcp_is_configured(project),
+        "agent_rules_installed": agent_rules_are_installed(root),
+        "restart_required": True,
+        "agents_path": str(agents_path),
+        "codex_config": str(CODEX_CONFIG),
+    }
+
+
 def command_index(args: argparse.Namespace) -> int:
     config, root = project_context(args.project)
     result = run_binary(
@@ -156,6 +277,12 @@ def command_status(args: argparse.Namespace) -> int:
         _, root = project_context(args.project)
         details["root"] = str(root)
         details["ignore_policy"] = "ok"
+        details["mcp_server"] = server_name(args.project)
+        details["mcp_configured"] = mcp_is_configured(args.project)
+        details["agent_rules_installed"] = agent_rules_are_installed(root)
+        details["fully_connected"] = bool(
+            details["mcp_configured"] and details["agent_rules_installed"]
+        )
         result = run_binary(["cli", "index_status", "--project", args.project], timeout=args.timeout)
         index = parse_json_stdout(result)
         details["index"] = index
@@ -174,6 +301,12 @@ def command_status(args: argparse.Namespace) -> int:
     )
     print(json.dumps(details, ensure_ascii=False, indent=2))
     return exit_code
+
+
+def command_configure(args: argparse.Namespace) -> int:
+    result = configure_project(args.project)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
 
 
 def command_tool(args: argparse.Namespace) -> int:
@@ -204,6 +337,13 @@ def main() -> int:
     index.add_argument("--mode", choices=("fast", "moderate", "full"), default="moderate")
     index.add_argument("--timeout", type=float, default=900.0)
     index.set_defaults(handler=command_index)
+
+    configure = subparsers.add_parser(
+        "configure",
+        help="Install project-scoped Codex MCP config and managed AGENTS.md routing rules.",
+    )
+    configure.add_argument("--project", required=True)
+    configure.set_defaults(handler=command_configure)
 
     tool = subparsers.add_parser("tool", help="Run a read-oriented Codebase Memory CLI tool.")
     tool.add_argument("--project", required=True)

@@ -188,6 +188,11 @@ def action_codebase_memory_index(project: str | None) -> dict[str, Any]:
         timeout=900,
     )
     require_ok(index_result, f"failed to index Codebase Memory graph for {project}")
+    configure_result = command_result(
+        [sys.executable, str(ROOT / "scripts" / "codebase-memory"), "configure", "--project", project],
+        timeout=30,
+    )
+    require_ok(configure_result, f"failed to configure project-scoped Codebase Memory MCP for {project}")
     status_result = command_result(
         [sys.executable, str(ROOT / "scripts" / "codebase-memory"), "status", "--project", project],
         timeout=30,
@@ -195,11 +200,12 @@ def action_codebase_memory_index(project: str | None) -> dict[str, Any]:
     require_ok(status_result, f"failed to refresh Codebase Memory status for {project}")
     return {
         "status": "ok",
-        "message": f"indexed Codebase Memory graph for {project}",
+        "message": f"connected Codebase Memory for {project}; restart Codex to load project-scoped MCP tools",
         "project": project,
         "created_ignore": created_ignore,
         "ignore_path": str(ignore_path),
-        "commands": [index_result, status_result],
+        "restart_required": True,
+        "commands": [index_result, configure_result, status_result],
     }
 
 
