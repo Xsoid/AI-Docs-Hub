@@ -36,6 +36,29 @@ Installer запускается с `--skip-config`, поэтому он не м
 
 Индексирование explicit-only: `auto_index=false`, `auto_watch=false`. Wrapper разрешает режимы `fast`, `moderate` и `full`, но штатная Make-команда использует `moderate`.
 
+## Использование Из Codex
+
+После полного подключения и перезапуска Codex проект получает отдельный MCP server `codebase_<project>`. Это второй MCP-контур рядом с Hub Docs MCP, а не новый tool внутри `mcp/server.py`.
+
+Используйте:
+
+| Задача | Первый источник |
+| --- | --- |
+| Документация, ADR, runbooks, policies | AI Docs Hub MCP |
+| Symbols, definitions и code snippets | Codebase Memory MCP |
+| Calls, imports, dependencies и routes | Codebase Memory MCP |
+| Call path и blast radius изменения | Codebase Memory MCP |
+| Проверка точного исходного текста или неполного graph coverage | `rg` и чтение source files |
+
+Proxy публикует только read-oriented tools:
+
+- `search_code`, `get_code_snippet`;
+- `search_graph`, `query_graph`, `get_graph_schema`;
+- `get_architecture`, `detect_changes`, `index_status`;
+- `trace_call_path`, `trace_path`.
+
+Если tool call не передает project, proxy добавляет закрепленный project сам. Если передан другой project, proxy отклоняет call. Mutating tools и repository persistence агенту не публикуются.
+
 ## Полное Подключение Проекта
 
 Наличие SQLite graph само по себе является только частичным подключением. Состояние `connected` требует трех признаков:
@@ -59,3 +82,12 @@ Routing rules направляют docs/ADR/runbooks в AI Docs Hub, а symbols/
 `scripts/hub-status` публикует optional component `codebase-memory` с version, cache path, project graphs, `mcp_configured`, `agent_rules_installed` и `fully_connected`. `make codebase-memory-status` сохраняет ignored snapshot в `storage/runtime/codebase-memory`; dashboard читает snapshot и не конкурирует с MCP за SQLite. Indexed graph без MCP/rules отображается как partial/attention и предлагает `Завершить подключение`.
 
 Dashboard показывает этот компонент на `http://localhost:4321/status/` как «Граф исходного кода».
+
+Для диагностики используйте:
+
+```sh
+make codebase-memory-status PROJECT=project-name
+make hub-status
+```
+
+Состояние `indexed`, но `fully_connected=false`, означает, что graph существует, однако MCP config или managed agent rules еще не установлены. Запустите allowlisted onboarding через dashboard или `python3.11 scripts/apply-fix --action codebase-memory.index --project project-name`, затем перезапустите Codex.

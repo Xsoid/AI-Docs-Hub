@@ -25,7 +25,7 @@ AI Docs Hub - локальный инфраструктурный репозит
 
 Docker, RAGFlow, external vector databases, cloud search и remote LLM APIs не входят в default working stack.
 
-Codebase Memory не является default dependency: Hub остается работоспособным без него, а status показывает sidecar как optional component.
+Codebase Memory не является default dependency: Hub остается работоспособным без него, а status показывает sidecar как optional component. Operational model, onboarding и список разрешенных MCP tools описаны на странице [Codebase Memory](/hub/codebase-memory/).
 
 ## Docs-As-Code
 

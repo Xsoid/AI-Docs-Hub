@@ -47,3 +47,9 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 Global `~/.codex/config.toml` можно редактировать только когда задача требует Codex/MCP setup. Правки должны быть scoped и явно описаны пользователю.
 
 Project files считаются read-only, кроме явных scaffold write workflows.
+
+## Codebase Memory Sidecar
+
+Codebase Memory работает как отдельный project-scoped MCP server через `mcp/codebase_memory_proxy.py --project project-name`; он не расширяет список tools основного `mcp/server.py`.
+
+Proxy публикует только read-oriented tools, закрепляет каждый call за project из `--project` и блокирует mutating tools, cross-project calls и repository persistence. MCP entry создается отдельно как `codebase_<project>`, а после изменения `~/.codex/config.toml` Codex необходимо перезапустить. См. практическое руководство [Codebase Memory](/hub/codebase-memory/).

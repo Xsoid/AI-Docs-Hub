@@ -28,6 +28,7 @@ export default defineConfig({
           items: [
             { label: 'Локальный runtime', slug: 'hub/local-runtime' },
             { label: 'Наблюдаемость runtime', slug: 'hub/runtime-observability' },
+            { label: 'Codebase Memory', slug: 'hub/codebase-memory' },
             { label: 'GUI dashboard', slug: 'hub/gui-dashboard' },
             { label: 'macOS menu bar', slug: 'hub/macos-menu-bar' }
           ]

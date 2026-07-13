@@ -14,6 +14,7 @@ AI Docs Hub - локальный инфраструктурный хаб для 
 - Генерирует `llms.txt`, `llms-full.txt` и `llms-small.txt`.
 - Генерирует обзорные страницы подключенных проектов для docs-site.
 - Отдает project-scoped MCP tools для Codex и других локальных агентов.
+- Подключает optional project-scoped [Codebase Memory](/hub/codebase-memory/) MCP для поиска symbols, calls, dependencies, routes и blast radius.
 - Показывает live runtime/status dashboard на `/status/`.
 - Проверяет documentation readiness и может dry-run scaffold недостающих проектных docs.
 
@@ -44,4 +45,4 @@ http://localhost:4321/
 make hub-status
 ```
 
-Первая точка для чтения - [Обзор](/hub/overview/), затем [Архитектура](/hub/architecture/) и [Справочник команд](/hub/command-reference/).
+Первая точка для чтения - [Обзор](/hub/overview/), затем [Архитектура](/hub/architecture/), [Codebase Memory](/hub/codebase-memory/) и [Справочник команд](/hub/command-reference/).

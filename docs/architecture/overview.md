@@ -23,7 +23,7 @@ AI Docs Hub - это локальная multi-stack система. У кажд�
 
 Docker, RAGFlow, external vector databases, cloud search и remote LLM APIs не входят в default working stack хаба.
 
-Codebase Memory не является default dependency: Lite RAG и Markdown ADR остаются независимыми source-of-truth слоями, а отсутствие sidecar не останавливает Hub.
+Codebase Memory не является default dependency: Lite RAG и Markdown ADR остаются независимыми source-of-truth слоями, а отсутствие sidecar не останавливает Hub. Operational model, onboarding и список разрешенных MCP tools описаны в `docs/operations/codebase-memory.md`.
 
 ## Слои
 

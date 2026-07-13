@@ -110,6 +110,17 @@ Generated artifacts не редактируются вручную.
 
 `index_project` требует `confirm=true`, чтобы начать indexing через MCP. `scaffold_project_docs` требует `confirm=true`, чтобы писать files в подключенный проект.
 
+## Codebase Memory
+
+| Команда | Назначение |
+| --- | --- |
+| `make codebase-memory-install` | Установить hub-managed binary в ignored `storage/runtime/bin/` без изменения MCP config. |
+| `make codebase-memory-index PROJECT=name` | Явно построить project-scoped graph в режиме `moderate` с `persistence=false`; требует безопасный `.cbmignore`. |
+| `make codebase-memory-status PROJECT=name` | Проверить binary, graph, project-scoped MCP config, managed agent rules и `fully_connected`. |
+| `python3.11 scripts/apply-fix --action codebase-memory.index --project name` | Идемпотентно подготовить `.cbmignore`, построить graph, настроить отдельный MCP server и routing rules. |
+
+После первого onboarding или изменения MCP config перезапустите Codex. Полная модель использования и список read-only tools описаны на странице [Codebase Memory](/hub/codebase-memory/).
+
 ## Cleanup
 
 | Команда | Назначение |
