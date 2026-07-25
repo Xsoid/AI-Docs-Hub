@@ -2,6 +2,10 @@
 
 This repository is the local AI Docs Hub. It stores infrastructure, generated artifacts, templates, indexes, and ecosystem-level documentation. Project-specific documentation must stay inside each connected project.
 
+## Git Workflow
+
+Work directly in `main`. Do not create feature, task, or agent branches for AI Docs Hub changes unless the user explicitly overrides this rule.
+
 ## Non-Negotiable Documentation Rule
 
 Hub documentation is part of the implementation. This rule must never be ignored.

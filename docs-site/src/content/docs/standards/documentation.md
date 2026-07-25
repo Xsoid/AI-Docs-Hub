@@ -29,6 +29,10 @@ description: Docs-as-code ownership, hub documentation duty and project document
 
 Если документацию нельзя обновить в том же change, реализация считается незавершенной и это нужно явно сообщить.
 
+## Git Workflow
+
+Изменения AI Docs Hub выполняются непосредственно в `main`. Агенты не создают отдельные feature-, task- или agent-ветки, если пользователь явно не отменил это правило для конкретной задачи.
+
 ## Каталог Стандартов
 
 - [Documentation](/standards/documentation/) - docs-as-code ownership, hub documentation duty, change notes и readiness.
