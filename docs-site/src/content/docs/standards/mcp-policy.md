@@ -48,6 +48,8 @@ Global `~/.codex/config.toml` можно редактировать только
 
 Project files считаются read-only, кроме явных scaffold write workflows.
 
+Подключение отдельного проекта к локальному Hub, включая project-scoped MCP entry и managed routing rules, не является изменением source documentation Hub. Такой onboarding не должен создавать tracked-файлы в `docs/`, `docs-site/` или `docs/changes/`. Change note нужен только для изменения самой политики или реализации этого workflow.
+
 ## Codebase Memory Sidecar
 
 Codebase Memory работает как отдельный project-scoped MCP server через `mcp/codebase_memory_proxy.py --project project-name`; он не расширяет список tools основного `mcp/server.py`.

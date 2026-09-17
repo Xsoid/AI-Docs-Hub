@@ -16,6 +16,10 @@ If the behavior affects usage, operations, debugging, or extension, the same cha
 
 Do not finish a hub change by leaving documentation as a follow-up. If the documentation cannot be updated in the same change, stop and report that the implementation is incomplete.
 
+Local project connection is an explicit exception: creating or updating a local project binding under `configs/projects/`, indexing a connected project, generating project pages or `llms*.txt`, creating Codebase Memory caches, or onboarding project-scoped MCP/routing rules must never create or modify tracked files under `docs/`, `docs-site/`, or `docs/changes/`. These operations are local runtime/configuration work. A change note is required only when the Hub's connection policy or implementation itself is changed, not when an individual project is connected.
+
+Avoid duplicate documentation artifacts. Change notes are stored only in `docs/changes/`; do not create mirrored copies under `docs-site/src/content/docs/changes/`. Docs-site should mirror source standards and hand-authored documentation where required, while generated project pages and local runtime artifacts remain governed by their own source-of-truth rules.
+
 Before changing RAG, MCP, docs-site, indexing, or generated context behavior:
 
 1. Read the architecture docs in `docs-site/src/content/docs/hub/architecture.md`.

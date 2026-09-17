@@ -56,3 +56,9 @@ Validation отличает:
 - errors: config не пригоден для indexing;
 - warnings: config работает, но требует внимания;
 - recommendations: documentation readiness gaps, не operational failure.
+
+## Local-Only Project Bindings
+
+Подключение конкретного проекта к локальному Hub является local-only операцией. Создание или обновление `configs/projects/*.yaml`, индекса проекта, generated project page, `llms*.txt`, Codebase Memory cache, project-scoped MCP entry или managed routing rules не должно создавать или изменять tracked-файлы в `docs/`, `docs-site/` или `docs/changes/`.
+
+Change note создается только при изменении самой политики или реализации подключения в AI Docs Hub. Для обычного onboarding отдельного проекта достаточно локального binding, generated artifacts и runtime status.

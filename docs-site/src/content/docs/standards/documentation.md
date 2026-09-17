@@ -123,3 +123,8 @@ Change note должен содержать:
 ## Secrets
 
 Никогда не документируйте secrets, credentials, tokens, cookies, private keys, sessions, dumps или secret-looking values.
+## Единственный Источник Change Notes
+
+Change notes хаба хранятся только в `docs/changes/`. Не создавайте копии в `docs-site/src/content/docs/changes/`: это дублирование, а не обязательное docs-site mirror.
+
+В docs-site синхронизируются source standards и hand-authored documentation, когда это требуется правилами docs-as-code. Change notes не являются отдельным зеркальным набором страниц.
