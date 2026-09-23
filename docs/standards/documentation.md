@@ -37,6 +37,7 @@
 В хабе сейчас используются такие группы стандартов:
 
 - documentation standard: docs-as-code ownership, структура проектной документации, обязанность обновлять документацию хаба, change notes, generated files, path portability и secrets hygiene;
+- [documentation hygiene](documentation-hygiene.md): canonical sources, границы документов, структура agent workflow и качество AI retrieval;
 - [RAG policy](rag-policy.md): project namespaces, local indexing, secret-safe source filtering, search output metadata, watch mode и RAG freshness diagnostics;
 - [MCP policy](mcp-policy.md): stdio JSON-RPC behavior, project scoping, stderr logging, подтверждение project-file writes и scoped Codex config edits;
 - [llms.txt policy](llms-txt.md): generated LLM context files, input sources и запрет ручного редактирования;

@@ -36,6 +36,7 @@ description: Docs-as-code ownership, hub documentation duty and project document
 ## Каталог Стандартов
 
 - [Documentation](/standards/documentation/) - docs-as-code ownership, hub documentation duty, change notes и readiness.
+- [Documentation Hygiene](/standards/documentation-hygiene/) - canonical sources, границы документов и качество AI retrieval.
 - [Project Config](/standards/project-config/) - portable roots, namespaces, `sources`, `include`, `exclude`, `agent_rules`, `docs_backend` и `mkdocs_config`.
 - [Source Discovery](/standards/source-discovery/) - effective source plan, standard sources и safe MkDocs structural discovery.
 - [RAG Policy](/standards/rag-policy/) - local indexing, namespaces, secret-safe filtering, output metadata, watch mode и freshness.

@@ -34,3 +34,9 @@ Before changing RAG, MCP, docs-site, indexing, or generated context behavior:
 10. Do not leave hub documentation as a follow-up when the current change creates a new concept, command, status field, stack dependency, or operational workflow.
 
 Do not mix context from different projects unless the user directly asks for cross-project analysis.
+
+## Documentation Hygiene
+
+- The permanent documentation-hygiene policy is canonical in `docs/standards/documentation-hygiene.md`.
+- Keep `AGENTS.md` limited to global guardrails and routing; store agent workflow in `.agents/skills/` and product, architecture, UI, and runtime contracts in `docs/`.
+- After documentation reorganization, check links, connected-project MkDocs navigation, the AI Docs Hub index, and generated `llms*.txt`; for substantial documentation changes, also check whether an existing document should be split or merged.

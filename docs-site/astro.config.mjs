@@ -37,6 +37,7 @@ export default defineConfig({
           label: 'Standards',
           items: [
             { label: 'Documentation', slug: 'standards/documentation' },
+            { label: 'Documentation Hygiene', slug: 'standards/documentation-hygiene' },
             { label: 'Project Config', slug: 'standards/project-config' },
             { label: 'Source Discovery', slug: 'standards/source-discovery' },
             { label: 'llms.txt', slug: 'standards/llms-txt' },
