@@ -134,6 +134,7 @@ python3.11 scripts/hub-status
 - docs-site: HTTP-ответ от lightweight status path `http://localhost:4321/status/`;
 - repository: результат `healthcheck`;
 - rag: наличие Lite RAG backend и количество индексов;
+- skill-intelligence: freshness и counts сохраненных per-project Skill Intelligence audits;
 - mcp: старт stdio MCP server, `tools/list` и MCP healthcheck;
 - watcher: свежий heartbeat от `make hub-dev`.
 

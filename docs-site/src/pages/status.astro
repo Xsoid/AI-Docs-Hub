@@ -733,6 +733,10 @@ const title = 'Статус AI Docs Hub';
           title: 'Документация',
           description: 'Показывает покрытие recommended docs и доступность scaffold по проектам.'
         },
+        'skill-intelligence': {
+          title: 'Skill Intelligence',
+          description: 'Показывает свежесть audit, skills, workflow candidates и validation diagnostics по проектам.'
+        },
         mcp: {
           title: 'Связь с Codex',
           description: 'Проверяет локальный MCP-мост и список доступных tools.'
@@ -865,6 +869,8 @@ const title = 'Статус AI Docs Hub';
           appendProjectRows(article, details.projects, mkdocsBadge, mkdocsMeta);
         } else if (name === 'docs-readiness') {
           appendProjectRows(article, details.projects, docsReadinessBadge, docsReadinessMeta);
+        } else if (name === 'skill-intelligence') {
+          appendProjectRows(article, details.projects, skillBadge, skillMeta, skillProjectFixes);
         } else if (name === 'codebase-memory') {
           appendProjectRows(article, details.projects, codebaseMemoryBadge, codebaseMemoryMeta);
         }
@@ -1016,6 +1022,34 @@ const title = 'Статус AI Docs Hub';
         ];
       }
 
+      function skillBadge(project) {
+        if (project.status === 'blocked' || project.status === 'error') {
+          return { text: project.status === 'blocked' ? 'blocked' : 'ошибка', kind: 'error' };
+        }
+        if (project.status === 'stale') return { text: 'stale', kind: 'warning' };
+        if (project.status === 'missing') return { text: 'нет audit', kind: 'warning' };
+        if (project.freshness === 'unknown') return { text: 'unknown', kind: 'warning' };
+        return { text: 'fresh', kind: 'ok' };
+      }
+
+      function skillMeta(project) {
+        const changed = Array.isArray(project.changed_paths) ? project.changed_paths.length : 0;
+        return [
+          `skills: ${project.skill_count ?? 0}`,
+          `candidates: ${project.candidate_count ?? 0}`,
+          `high confidence: ${project.high_confidence_candidate_count ?? 0}`,
+          `warnings: ${project.warning_count ?? 0}, errors: ${project.error_count ?? 0}`,
+          project.last_audit_at ? `last audit: ${formatTime(project.last_audit_at)}` : 'last audit: не запускался',
+          changed ? `измененных источников: ${changed}` : ''
+        ];
+      }
+
+      function skillProjectFixes(project) {
+        if (project.status === 'error' && !project.audit_available) return [];
+        const label = project.status === 'missing' ? 'Запустить audit' : 'Обновить audit';
+        return [{ action: 'skill-audit', project: project.project, label }];
+      }
+
       function componentFixes(name, component) {
         if (name === 'docs-site' && component.status !== 'ok') {
           return [{ action: 'docs-site.restart', label: 'Перезапустить сайт' }];
@@ -1146,6 +1180,7 @@ const title = 'Статус AI Docs Hub';
           'rag',
           'mkdocs',
           'docs-readiness',
+          'skill-intelligence',
           'mcp',
           'codebase-memory',
           'watcher'
@@ -1213,6 +1248,7 @@ const title = 'Статус AI Docs Hub';
       function actionTitle(action) {
         const titles = {
           'codebase-memory.index': 'Подключение Code graph',
+          'skill-audit': 'Skill Intelligence audit',
           'generated.refresh': 'Сборка generated context',
           'rag.reindex': 'Актуализация Docs RAG',
           'docs-site.restart': 'Перезапуск docs-site',

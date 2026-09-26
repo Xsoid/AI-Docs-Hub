@@ -16,6 +16,7 @@ FIX_DIR = ROOT / "storage" / "runtime" / "fixes"
 ALLOWED_ACTIONS = {
     "rag.reindex",
     "generated.refresh",
+    "skill-audit",
     "codebase-memory.index",
     "docs-site.restart",
     "runtime.start",

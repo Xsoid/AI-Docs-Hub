@@ -87,6 +87,7 @@ Generated artifacts не редактируются вручную.
 | `make scaffold-docs-write PROJECT=name` | Явно создать missing starter docs в подключенном проекте. |
 | `make skill-audit PROJECT=name` | Выполнить read-only Skill Architecture audit с локальным JSON report в ignored storage. |
 | `python3.11 scripts/skill-audit --project name --json` | Вернуть machine-readable skill inventory, workflow candidates и validation diagnostics. |
+| `python3.11 scripts/apply-fix --action skill-audit --project name` | Allowlisted dashboard action: выполнить read-only audit и обновить локальный report. |
 | `make logs PROJECT=name` | Прочитать operation log проекта из `storage/index/{project}_log.jsonl`. |
 
 `scaffold-docs-write` является явным разрешением на запись в connected project root. Non-empty files не перезаписываются.

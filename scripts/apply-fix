@@ -21,12 +21,13 @@ LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / "local.ai-docs-h
 ACTION_DESCRIPTIONS = {
     "rag.reindex": "Reindex one project namespace and regenerate generated context.",
     "generated.refresh": "Regenerate project pages and generated LLM context.",
+    "skill-audit": "Run a read-only Skill Intelligence audit and store its local report.",
     "codebase-memory.index": "Prepare the project safety ignore file and build its code graph.",
     "docs-site.restart": "Restart the persistent docs-site runtime through launchd.",
     "runtime.start": "Start the persistent AI Docs Hub launchd runtime.",
     "runtime.install-start": "Install and start the persistent AI Docs Hub launchd runtime.",
 }
-PROJECT_ACTIONS = {"rag.reindex", "generated.refresh", "codebase-memory.index"}
+PROJECT_ACTIONS = {"rag.reindex", "generated.refresh", "skill-audit", "codebase-memory.index"}
 JOB_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -167,6 +168,32 @@ def action_generated_refresh(project: str | None) -> dict[str, Any]:
     }
 
 
+def action_skill_audit(project: str | None) -> dict[str, Any]:
+    validate_project(project)
+    assert project is not None
+    result = command_result(
+        [sys.executable, str(ROOT / "scripts" / "skill-audit"), "--project", project, "--json"],
+        timeout=180,
+    )
+    require_ok(result, f"failed to audit skills for {project}")
+    try:
+        report = json.loads(result["stdout"])
+    except json.JSONDecodeError as exc:
+        raise FixError("skill audit returned invalid JSON", details={"command_result": result}) from exc
+    summary = report.get("summary", {}) if isinstance(report, dict) else {}
+    report_status = report.get("status", "ok") if isinstance(report, dict) else "ok"
+    return {
+        "status": "ok" if report_status == "ok" else "warning",
+        "message": (
+            f"audited {project}: {summary.get('skill_count', 0)} skills, "
+            f"{summary.get('candidate_count', 0)} workflow candidates"
+        ),
+        "project": project,
+        "audit_status": report_status,
+        "summary": summary,
+    }
+
+
 def action_codebase_memory_index(project: str | None) -> dict[str, Any]:
     config = validate_project(project)
     assert project is not None
@@ -248,6 +275,8 @@ def run_action(action: str, project: str | None) -> dict[str, Any]:
         return action_rag_reindex(project)
     if action == "generated.refresh":
         return action_generated_refresh(project)
+    if action == "skill-audit":
+        return action_skill_audit(project)
     if action == "codebase-memory.index":
         return action_codebase_memory_index(project)
     if action == "docs-site.restart":

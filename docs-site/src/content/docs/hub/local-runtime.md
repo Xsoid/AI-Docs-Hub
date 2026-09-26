@@ -83,6 +83,7 @@ http://localhost:4321/status/
 - rag: indexes, freshness и per-project counts;
 - mkdocs: adapter state;
 - docs-readiness: coverage и recommendations;
+- skill-intelligence: freshness и counts сохраненных per-project Skill Intelligence audits;
 - mcp: stdio server, `tools/list` и MCP `healthcheck`;
 - watcher: heartbeat от `hub-dev`.
 

@@ -78,6 +78,7 @@ storage/logs/apply-fix-*.log
 
 - `rag.reindex` - собрать или актуализировать docs index;
 - `generated.refresh` - пересобрать project pages и `llms*.txt`;
+- `skill-audit` - выполнить read-only Skill Intelligence audit и обновить локальный report;
 - `codebase-memory.index` - создать project-owned `.cbmignore`, если его нет, и построить moderate code graph с `persistence=false`.
 
 Code graph считается подключенным только при `graph indexed + project-scoped MCP configured + managed AGENTS rules installed`. Если существует только graph index, dashboard показывает `требует внимания` и кнопку `Завершить подключение`. После успешного onboarding панель операции напоминает перезапустить Codex.

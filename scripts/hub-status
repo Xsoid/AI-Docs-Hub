@@ -23,6 +23,7 @@ from rag.config import is_unbound_example_config, load_project_configs, validate
 from rag.docs_quality import documentation_readiness  # noqa: E402
 from rag.health import run_healthcheck  # noqa: E402
 from rag.sources import build_source_plan  # noqa: E402
+from rag.skill_intelligence import get_stored_skill_intelligence_status  # noqa: E402
 
 DOCS_URL = "http://localhost:4321/"
 DOCS_HEALTH_URL = "http://localhost:4321/status/"
@@ -722,6 +723,101 @@ def check_documentation_readiness() -> Component:
     )
 
 
+def check_skill_intelligence() -> Component:
+    try:
+        configs = real_project_configs()
+    except Exception as exc:  # noqa: BLE001
+        return Component(
+            "skill-intelligence",
+            "error",
+            f"failed to inspect Skill Intelligence: {exc}",
+            required=False,
+        )
+
+    projects: list[dict[str, Any]] = []
+    missing_count = 0
+    stale_count = 0
+    blocked_count = 0
+    error_count = 0
+    for config in configs:
+        config_issues = validate_project_config(config)
+        config_errors = [issue for issue in config_issues if issue.get("level") == "error"]
+        if config_errors:
+            error_count += 1
+            projects.append(
+                {
+                    "project": config.project,
+                    "status": "error",
+                    "freshness": "unavailable",
+                    "message": "; ".join(issue["message"] for issue in config_errors),
+                    "audit_available": False,
+                    "next_step": f"make skill-audit PROJECT={config.project}",
+                }
+            )
+            continue
+        try:
+            summary = get_stored_skill_intelligence_status(config)
+        except Exception as exc:  # noqa: BLE001
+            error_count += 1
+            projects.append(
+                {
+                    "project": config.project,
+                    "status": "error",
+                    "freshness": "invalid",
+                    "message": str(exc),
+                    "audit_available": False,
+                    "next_step": f"make skill-audit PROJECT={config.project}",
+                }
+            )
+            continue
+        if summary["status"] == "missing":
+            missing_count += 1
+        elif summary["status"] == "stale":
+            stale_count += 1
+        elif summary["status"] == "blocked":
+            blocked_count += 1
+        elif summary["status"] == "error":
+            error_count += 1
+        project = {
+            "project": config.project,
+            **summary,
+            "audit_available": summary["audit_exists"],
+            "next_step": f"make skill-audit PROJECT={config.project}",
+        }
+        projects.append(project)
+
+    if error_count or blocked_count:
+        status = "error"
+    elif missing_count or stale_count:
+        status = "warning"
+    else:
+        status = "ok"
+    if not projects:
+        message = "no connected projects"
+    elif missing_count:
+        message = f"{len(projects) - missing_count}/{len(projects)} project audits available, {missing_count} missing"
+    elif stale_count:
+        message = f"{len(projects) - stale_count}/{len(projects)} project audits fresh, {stale_count} stale"
+    else:
+        message = f"{len(projects)}/{len(projects)} project audits available"
+    return Component(
+        "skill-intelligence",
+        status,
+        message,
+        required=False,
+        details={
+            "projects": projects,
+            "project_count": len(projects),
+            "missing_count": missing_count,
+            "stale_count": stale_count,
+            "blocked_count": blocked_count,
+            "error_count": error_count,
+            "auto_audit": False,
+            "storage": "storage/skill-intelligence/<project>/audit.json",
+        },
+    )
+
+
 def check_generated_context() -> Component:
     missing: list[str] = []
     files: list[dict[str, Any]] = []
@@ -1142,6 +1238,7 @@ def main() -> int:
         rag,
         check_mkdocs(),
         check_documentation_readiness(),
+        check_skill_intelligence(),
         check_mcp(timeout=args.timeout),
         codebase_memory,
         check_watcher(stale_after=args.watcher_stale_after),

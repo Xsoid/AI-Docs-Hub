@@ -4,6 +4,7 @@ import contextlib
 from importlib.machinery import SourceFileLoader
 import importlib.util
 import io
+import os
 import subprocess
 import stat
 import sys
@@ -20,6 +21,7 @@ from rag.skill_intelligence import (
     create_skill_proposal,
     get_skill_inventory,
     get_skill_intelligence_summary,
+    get_stored_skill_intelligence_status,
     run_skill_audit,
     validate_skill_architecture,
 )
@@ -110,6 +112,7 @@ class SkillIntelligenceIsolationTests(unittest.TestCase):
             inventory = get_skill_inventory(self.config)
             audit = run_skill_audit(self.config)
             candidates = analyze_skill_candidates(self.config)
+            stored_status = get_stored_skill_intelligence_status(self.config)
 
         self.assertEqual(inventory["count"], 1)
         self.assertEqual(inventory["skills"][0]["name"], "deploy")
@@ -122,7 +125,26 @@ class SkillIntelligenceIsolationTests(unittest.TestCase):
             any(item["classification"] == "global_guardrail" for item in audit["classifications"])
         )
         self.assertTrue((self.storage / "synthetic-project" / "audit.json").is_file())
+        self.assertEqual(stored_status["status"], "audited")
+        self.assertEqual(stored_status["freshness"], "fresh")
+        self.assertEqual(stored_status["candidate_count"], audit["summary"]["candidate_count"])
         self.assertEqual(self.hub_status(), status_before)
+
+    def test_stored_skill_audit_becomes_stale_after_source_change(self) -> None:
+        with patch("rag.skill_intelligence.HUB_ROOT", self.hub_root), patch(
+            "rag.skill_intelligence.SKILL_STORAGE_DIR", self.storage
+        ), patch("rag.skill_intelligence.log_operation"):
+            run_skill_audit(self.config)
+            fresh = get_stored_skill_intelligence_status(self.config)
+            source = self.project_root / "docs" / "workflow.md"
+            source.write_text(source.read_text(encoding="utf-8") + "\nNew verified step.\n", encoding="utf-8")
+            future = source.stat().st_mtime + 2
+            os.utime(source, (future, future))
+            stale = get_stored_skill_intelligence_status(self.config)
+
+        self.assertEqual(fresh["freshness"], "fresh")
+        self.assertEqual(stale["status"], "stale")
+        self.assertIn("docs/workflow.md", stale["changed_paths"])
 
     def test_validator_reports_secret_duplicates_scope_and_broken_links(self) -> None:
         duplicate_dir = self.project_root / ".agents" / "skills" / "duplicate"
@@ -231,6 +253,38 @@ class SkillIntelligenceIsolationTests(unittest.TestCase):
         self.assertIn("skill_intelligence", profile)
         self.assertEqual(profile["skill_intelligence"]["skill_count"], 1)
         self.assertIn("high_confidence_candidate_count", profile["skill_intelligence"])
+
+    def test_hub_status_exposes_skill_intelligence_component(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "hub-status"
+        loader = SourceFileLoader("hub_status_for_skill_test", str(script))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        stored = {
+            "status": "audited",
+            "freshness": "fresh",
+            "audit_exists": True,
+            "last_audit_at": "2026-09-26T19:00:00+00:00",
+            "skill_count": 1,
+            "candidate_count": 2,
+            "high_confidence_candidate_count": 1,
+            "error_count": 0,
+            "warning_count": 0,
+            "recommendation_count": 1,
+            "changed_paths": [],
+        }
+        with patch.object(module, "real_project_configs", return_value=[self.config]), patch.object(
+            module, "get_stored_skill_intelligence_status", return_value=stored
+        ):
+            component = module.check_skill_intelligence()
+
+        self.assertEqual(component.name, "skill-intelligence")
+        self.assertEqual(component.status, "ok")
+        self.assertEqual(component.details["projects"][0]["candidate_count"], 2)
+        self.assertEqual(component.details["projects"][0]["next_step"], "make skill-audit PROJECT=synthetic-project")
 
     def test_proposal_apply_is_confirmed_and_confined_to_external_project(self) -> None:
         status_before = self.hub_status()

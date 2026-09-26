@@ -14,6 +14,7 @@ Status diagnostics должны показывать operational failures отд
 - `rag` - index state and freshness;
 - `mkdocs` - adapter state;
 - `docs-readiness` - coverage/recommendations;
+- `skill-intelligence` - optional per-project skill audit freshness, counts and warnings;
 - `mcp` - stdio MCP tool listing and healthcheck;
 - `codebase-memory` - optional binary/version, local cache и indexed code graphs;
 - `watcher` - heartbeat and child process state.
@@ -23,6 +24,8 @@ Status diagnostics должны показывать operational failures отд
 Required components define `DOWN`. Optional components can define `DEGRADED`.
 
 `codebase-memory` является optional: отсутствующий binary, недоступный CLI или отсутствие графов дает warning/`DEGRADED`, но не `DOWN`.
+
+`skill-intelligence` является optional: status читает сохраненные локальные audit reports из `storage/skill-intelligence/<project>/audit.json`, но сам audit не запускает. Отсутствующий или устаревший audit дает warning/`DEGRADED`; blocked или invalid report дает error внутри optional component.
 
 Documentation readiness gaps are recommendations. Они должны оставаться видимыми, но не должны переводить repository/runtime status в degraded сами по себе.
 
@@ -53,6 +56,7 @@ Dashboard может показывать кнопки исправления т
 - `rag.reindex` - переиндексировать конкретный project namespace через `scripts/index-project --reindex` и затем регенерировать `llms*.txt`;
 - `generated.refresh` - пересобрать generated project pages и `llms*.txt`;
 - `codebase-memory.index` - после явного нажатия подготовить project-owned `.cbmignore` и построить scoped code graph;
+- `skill-audit` - после явного нажатия выполнить read-only Skill Intelligence audit и сохранить локальный report;
 - `docs-site.restart` - перезапустить persistent runtime через `scripts/hub-launchd restart`;
 - `runtime.start` - запустить уже установленный LaunchAgent;
 - `runtime.install-start` - установить и запустить LaunchAgent после явного нажатия пользователя.

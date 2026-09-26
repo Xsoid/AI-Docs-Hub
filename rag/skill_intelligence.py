@@ -711,12 +711,64 @@ def _store_json(path: Path, value: dict[str, Any]) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _source_snapshot(config: ProjectConfig) -> dict[str, dict[str, Any]]:
+    root = config.root.resolve()
+    snapshot: dict[str, dict[str, Any]] = {}
+    for rel_path in _discover_source_paths(config):
+        try:
+            path = safe_resolve(root, rel_path)
+            stat_result = path.stat()
+        except (OSError, ValueError):
+            continue
+        if path.is_file():
+            snapshot[rel_path] = {
+                "mtime": datetime.fromtimestamp(stat_result.st_mtime, timezone.utc).isoformat(),
+                "mtime_ns": stat_result.st_mtime_ns,
+                "size": stat_result.st_size,
+            }
+    return snapshot
+
+
+def _audit_source_changes(config: ProjectConfig, report: dict[str, Any]) -> list[str] | None:
+    stored_snapshot = report.get("source_snapshot")
+    if not isinstance(stored_snapshot, dict):
+        return None
+    root = config.root.resolve()
+    changed: set[str] = set()
+    current_paths = set(_discover_source_paths(config))
+    stored_paths = set(str(path) for path in stored_snapshot)
+    changed.update(current_paths - stored_paths)
+    changed.update(stored_paths - current_paths)
+    for rel_path in current_paths & stored_paths:
+        metadata = stored_snapshot.get(rel_path)
+        if not isinstance(metadata, dict):
+            changed.add(rel_path)
+            continue
+        try:
+            current_path = safe_resolve(root, rel_path)
+            current_stat = current_path.stat()
+            stored_mtime_ns = metadata.get("mtime_ns")
+            if stored_mtime_ns is not None:
+                if current_stat.st_mtime_ns != int(stored_mtime_ns):
+                    changed.add(rel_path)
+                continue
+            current_mtime = current_stat.st_mtime
+            stored_mtime = datetime.fromisoformat(str(metadata.get("mtime"))).timestamp()
+        except (OSError, ValueError, TypeError):
+            changed.add(rel_path)
+            continue
+        if abs(current_mtime - stored_mtime) > 1e-6:
+            changed.add(rel_path)
+    return sorted(changed)
+
+
 def run_skill_audit(project: str | ProjectConfig, *, persist: bool = True) -> dict[str, Any]:
     config = get_project_config(project) if isinstance(project, str) else project
     _storage_project_dir(config.project)
     log_operation(config.project, "skill_audit_started", {"namespace": config.namespace})
     report = validate_skill_architecture(config)
     report["audited_at"] = _utc_now()
+    report["source_snapshot"] = _source_snapshot(config)
     if persist:
         _store_json(_local_artifact_path(config, "inventory"), report["skills"])
         _store_json(_local_artifact_path(config, "audit"), report)
@@ -731,6 +783,57 @@ def run_skill_audit(project: str | ProjectConfig, *, persist: bool = True) -> di
         },
     )
     return report
+
+
+def get_stored_skill_intelligence_status(project: str | ProjectConfig) -> dict[str, Any]:
+    """Read the last persisted audit without re-running project analysis."""
+    config = get_project_config(project) if isinstance(project, str) else project
+    audit_path = _local_artifact_path(config, "audit")
+    base = {
+        "status": "missing",
+        "freshness": "missing",
+        "audit_exists": False,
+        "last_audit_at": None,
+        "skill_count": 0,
+        "candidate_count": 0,
+        "high_confidence_candidate_count": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "recommendation_count": 0,
+        "changed_paths": [],
+    }
+    if not audit_path.is_file():
+        return base
+    try:
+        report = json.loads(audit_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {**base, "status": "error", "freshness": "invalid", "audit_exists": True}
+    if report.get("project") != config.project or report.get("namespace") != config.namespace:
+        return {**base, "status": "error", "freshness": "invalid", "audit_exists": True}
+    summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    candidates = report.get("candidates") if isinstance(report.get("candidates"), list) else []
+    changed_paths = _audit_source_changes(config, report)
+    freshness = "unknown" if changed_paths is None else "stale" if changed_paths else "fresh"
+    report_status = str(report.get("status", "ok"))
+    status = "blocked" if report_status == "blocked" else "stale" if freshness == "stale" else "audited"
+    return {
+        **base,
+        "status": status,
+        "freshness": freshness,
+        "audit_exists": True,
+        "last_audit_at": report.get("audited_at"),
+        "skill_count": int(summary.get("skill_count", 0) or 0),
+        "candidate_count": int(summary.get("candidate_count", len(candidates)) or 0),
+        "high_confidence_candidate_count": sum(
+            float((candidate.get("scores") or {}).get("overall", 0)) >= 0.7
+            for candidate in candidates
+            if isinstance(candidate, dict) and isinstance(candidate.get("scores") or {}, dict)
+        ),
+        "error_count": int(summary.get("error_count", 0) or 0),
+        "warning_count": int(summary.get("warning_count", 0) or 0),
+        "recommendation_count": int(summary.get("recommendation_count", 0) or 0),
+        "changed_paths": changed_paths or [],
+    }
 
 
 def get_skill_intelligence_summary(project: str | ProjectConfig) -> dict[str, Any]:

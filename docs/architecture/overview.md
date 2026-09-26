@@ -61,7 +61,7 @@ MkDocs adapter не запускает `mkdocs build`, `plugins`, `hooks` или
 
 - `make docs-dev` регенерирует страницы проектов и запускает Astro в foreground-режиме;
 - локальный URL по умолчанию: `http://localhost:4321/`;
-- `/status/` показывает runtime-состояние хаба и project-scoped diagnostics там, где это имеет смысл: project config/source discovery, generated project pages, RAG indexes, MkDocs adapter, documentation readiness и scaffold availability;
+- `/status/` показывает runtime-состояние хаба и project-scoped diagnostics там, где это имеет смысл: project config/source discovery, generated project pages, RAG indexes, MkDocs adapter, documentation readiness, Skill Intelligence и scaffold availability;
 - `/api/apply-fix.json` запускает только allowlisted fix actions через `scripts/apply-fix`;
 - процесс docs-site пока не супервизируется самим хабом.
 
@@ -74,6 +74,8 @@ RAG backend по умолчанию - локальное JSON/BM25-хранил�
 Перед индексацией строится effective source plan: ручные include/exclude правила объединяются с безопасно прочитанными MkDocs-правилами, затем применяется exclude filtering и secret scan.
 
 Status page показывает RAG backend, количество source-файлов, indexed documents, chunks, путь к индексу, время индексации, newest source timestamp и freshness по каждому проекту. Stale index является operational warning, потому что поиск может отставать от docs-as-code.
+
+Status page также показывает optional Skill Intelligence component: наличие audit, freshness относительно разрешенных source-файлов, количество skills/candidates, high-confidence candidates и validation warnings/errors по каждому проекту. Status только читает сохраненный ignored report; read-only audit запускается явно кнопкой `skill-audit` в dashboard.
 
 ### Documentation Scaffold
 
