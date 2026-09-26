@@ -97,9 +97,12 @@ Status page показывает RAG backend, количество source-фай
 - переиспользует project config, effective source discovery, exclude/path safety и secret scan;
 - инвентаризирует `.agents/skills/*/SKILL.md` и классифицирует материал из разрешенных docs и root `AGENTS.md`;
 - выдает объяснимые workflow candidates, scope/reference/security diagnostics и структурированные proposal records;
+- сравнивает содержимое workflow-кандидатов между разными canonical sources, даже если заголовки различаются, и отдельно предупреждает о дублировании skill-сегментов в `docs/` или `AGENTS.md`;
 - сохраняет project-derived inventory, audit и proposals только в ignored `storage/skill-intelligence/<project>/`.
 
 `scripts/skill-audit --project <name>` и `make skill-audit PROJECT=<name>` выполняют read-only audit. MCP read tools передают Codex структурированный контекст; Hub не вызывает LLM и не генерирует `SKILL.md`.
+
+`get_project_profile` включает компактный `skill_intelligence` summary: status inventory, число skills и кандидатов, high-confidence candidates, validation errors/warnings/recommendations и timestamp последнего сохраненного audit. Построение summary read-only и не заменяет полный audit report.
 
 Apply использует только полное reviewed content, объявленные proposal target paths и `confirm=true`. Разрешены `.agents/skills/**`, `docs/**` и root `AGENTS.md`; target повторно проверяется на project-root containment, exclude rules, secret patterns и ожидаемый content hash. Запись в сам checkout Hub запрещена, даже если он указан как project root. Внешний проект не становится источником tracked Hub-файлов.
 

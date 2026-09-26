@@ -46,7 +46,7 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 
 `scaffold_project_docs` не пишет files в connected project root без `confirm=true`. Dry-run остается default.
 
-Skill Intelligence read tools project-scoped и не переключают namespace. Proposal/audit artifacts сохраняются локально в ignored storage. `apply_skill_proposal` принимает complete reviewed content только для точного набора proposal targets; без `confirm=true` он возвращает dry-run и ничего не записывает. Apply повторно проверяет project-root containment, allowed path surface, exclude rules, secret patterns и hash исходного файла. Hub не вызывает LLM для proposal transformation или генерации skills.
+Skill Intelligence read tools project-scoped и не переключают namespace. `get_project_profile` также возвращает компактный Skill Intelligence summary, но не заменяет полный audit. Audit сравнивает workflow-кандидаты по содержимому между разными sources и проверяет ownership skill-сегментов относительно canonical docs/`AGENTS.md`; project-derived текст в summary не копируется. Proposal/audit artifacts сохраняются локально в ignored storage. `apply_skill_proposal` принимает complete reviewed content только для точного набора proposal targets; без `confirm=true` он возвращает dry-run и ничего не записывает. Apply повторно проверяет project-root containment, allowed path surface, exclude rules, secret patterns и hash исходного файла. Hub не вызывает LLM для proposal transformation или генерации skills.
 
 ## Config Edits
 

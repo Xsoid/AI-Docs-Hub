@@ -28,7 +28,7 @@
 
 Skill Intelligence классифицирует материал без LLM: повторяемые task-specific процедуры являются кандидатами для `.agents/skills/`; project facts/contracts остаются в `docs/`; глобальные guardrails, permissions и routing остаются в `AGENTS.md`; история остается в decision/change history. Generated analysis и proposals содержат project-derived data и хранятся только в ignored `storage/skill-intelligence/<project>/`.
 
-Audit выдает рекомендации, но ничего не меняет в подключенном проекте. Proposal может применить только явный `confirm=true` с reviewed replacement content для точных объявленных paths. Evolution proposal требует проверяемого evidence (`working_code`, `fixed_regression`, `verified_test` или явная user correction); временные workaround, одноразовые настройки и догадки не продвигаются. Ни audit, ни proposal не переписывают skill автоматически.
+Audit выдает рекомендации, но ничего не меняет в подключенном проекте. Междокументные workflow-дубликаты определяются по объяснимому сходству содержимого, а не только по одинаковым заголовкам. Отдельная ownership-проверка предупреждает, если skill повторяет материал canonical `docs/` или `AGENTS.md`; canonical facts не должны дублироваться в skill. Proposal может применить только явный `confirm=true` с reviewed replacement content для точных объявленных paths. Evolution proposal требует проверяемого evidence (`working_code`, `fixed_regression`, `verified_test` или явная user correction); временные workaround, одноразовые настройки и догадки не продвигаются. Ни audit, ни proposal не переписывают skill автоматически.
 
 ## Retrieval И Навигация
 

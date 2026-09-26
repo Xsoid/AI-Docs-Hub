@@ -93,6 +93,8 @@ Generated artifacts не редактируются вручную.
 
 `skill-audit` не меняет project files. Skill proposals также ничего не меняют, пока Codex не передаст reviewed content и `confirm=true` в `apply_skill_proposal`. Результаты внешнего проекта хранятся только локально в `storage/skill-intelligence/<project>/`.
 
+`get_project_profile` возвращает компактный `skill_intelligence` summary с inventory status, числом skills/candidates, high-confidence candidates, validation counts и временем последнего сохраненного audit; полный machine-readable report остается доступен через Skill Intelligence audit tools.
+
 ## MCP Tools
 
 `mcp/server.py` exposes:

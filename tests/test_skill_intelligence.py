@@ -19,6 +19,7 @@ from rag.skill_intelligence import (
     create_evolution_proposal,
     create_skill_proposal,
     get_skill_inventory,
+    get_skill_intelligence_summary,
     run_skill_audit,
     validate_skill_architecture,
 )
@@ -149,6 +150,87 @@ class SkillIntelligenceIsolationTests(unittest.TestCase):
         self.assertIn("absolute_path", issue_types)
         self.assertIn("router_skill", issue_types)
         self.assertEqual(report["status"], "blocked")
+
+    def test_validator_detects_different_headings_with_the_same_workflow(self) -> None:
+        (self.project_root / "docs" / "release-check.md").write_text(
+            "# Release Readiness\n\n"
+            "Before promoting the release, first check the deployment docs.\n"
+            "1. Run the validation command.\n"
+            "2. Verify the result and update the runbook.\n",
+            encoding="utf-8",
+        )
+        with patch("rag.skill_intelligence.log_operation"):
+            report = validate_skill_architecture(self.config)
+
+        duplicates = [issue for issue in report["issues"] if issue["type"] == "duplicate_workflow"]
+        self.assertTrue(duplicates)
+        duplicate = duplicates[0]
+        self.assertEqual(duplicate["source_path"], "docs/release-check.md")
+        self.assertIn("docs/workflow.md", duplicate["related_paths"])
+        self.assertGreaterEqual(duplicate["shared_tokens"], 5)
+        self.assertGreaterEqual(duplicate["similarity"], 0.62)
+
+    def test_validator_reports_skill_to_canonical_docs_ownership_conflict(self) -> None:
+        (self.project_root / "docs" / "deployment-contract.md").write_text(
+            "# Deployment Contract\n\n"
+            "Deployment uses the release validation command before promotion.\n",
+            encoding="utf-8",
+        )
+        (self.project_root / ".agents" / "skills" / "deploy" / "SKILL.md").write_text(
+            "---\nname: deploy\ndescription: Deploy the project safely.\n---\n"
+            "# Deployment Notes\n\n"
+            "Deployment uses the release validation command before promotion.\n",
+            encoding="utf-8",
+        )
+        with patch("rag.skill_intelligence.log_operation"):
+            report = validate_skill_architecture(self.config)
+
+        conflicts = [
+            issue for issue in report["issues"] if issue["type"] == "skill_docs_ownership_conflict"
+        ]
+        self.assertTrue(conflicts)
+        conflict = conflicts[0]
+        self.assertEqual(conflict["source_path"], ".agents/skills/deploy/SKILL.md")
+        self.assertEqual(conflict["related_path"], "docs/deployment-contract.md")
+        self.assertGreaterEqual(conflict["shared_tokens"], 5)
+
+    def test_skill_summary_is_available_for_project_profile_data(self) -> None:
+        with (
+            patch("rag.skill_intelligence.HUB_ROOT", self.hub_root),
+            patch("rag.skill_intelligence.SKILL_STORAGE_DIR", self.storage),
+            patch("rag.skill_intelligence.log_operation"),
+        ):
+            summary = get_skill_intelligence_summary(self.config)
+
+        self.assertEqual(summary["status"], "ok")
+        self.assertEqual(summary["inventory_status"], "ok")
+        self.assertEqual(summary["skill_count"], 1)
+        self.assertGreaterEqual(summary["candidate_count"], 1)
+        self.assertIn("high_confidence_candidate_count", summary)
+        self.assertIn("last_audit_at", summary)
+
+    def test_project_profile_includes_skill_intelligence_summary(self) -> None:
+        from rag.lite import project_profile
+
+        profile_config = ProjectConfig(
+            **{
+                **self.config.__dict__,
+                "config_path": self.hub_root / "configs" / "projects" / "synthetic.yaml",
+            }
+        )
+        with (
+            patch("rag.lite.get_project_config", return_value=profile_config),
+            patch("rag.lite.HUB_ROOT", self.hub_root),
+            patch("rag.config.INDEX_DIR", self.hub_root / "storage" / "index"),
+            patch("rag.skill_intelligence.HUB_ROOT", self.hub_root),
+            patch("rag.skill_intelligence.SKILL_STORAGE_DIR", self.storage),
+            patch("rag.skill_intelligence.log_operation"),
+        ):
+            profile = project_profile("synthetic-project")
+
+        self.assertIn("skill_intelligence", profile)
+        self.assertEqual(profile["skill_intelligence"]["skill_count"], 1)
+        self.assertIn("high_confidence_candidate_count", profile["skill_intelligence"])
 
     def test_proposal_apply_is_confirmed_and_confined_to_external_project(self) -> None:
         status_before = self.hub_status()

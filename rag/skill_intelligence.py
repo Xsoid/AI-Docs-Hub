@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -53,6 +54,15 @@ GLOBAL_GUARDRAIL_PATTERNS = (
 )
 REFERENCE_RE = re.compile(r"(?<!\!)\[[^\]]*\]\(([^)]+)\)|`([^`]+\.(?:md|mdx|ya?ml|toml|json|py|ts|tsx))`")
 HOST_PATH_RE = re.compile(r"(?i)(?:/(?:Users|home|private/var)/[^\s`]+|~[/\\][^\s`]+|[A-Z]:\\Users\\[^\s`]+)")
+WORKFLOW_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_]+")
+WORKFLOW_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "before", "by", "for", "from", "if",
+    "in", "is", "it", "of", "on", "or", "project", "the", "then", "this", "to", "with",
+    "а", "без", "в", "для", "если", "и", "из", "как", "на", "не", "по", "при", "с", "со",
+    "это", "чтобы", "к", "у", "же", "что",
+}
+MIN_SHARED_WORKFLOW_TOKENS = 5
+MIN_WORKFLOW_SIMILARITY = 0.62
 
 
 def _utc_now() -> str:
@@ -130,6 +140,30 @@ def _relative_references(text: str) -> list[str]:
         elif "." in PurePosixPath(reference).name:
             references.append(reference)
     return references
+
+
+def _workflow_tokens(text: str) -> list[str]:
+    return [
+        token
+        for token in WORKFLOW_TOKEN_RE.findall(text.casefold())
+        if len(token) > 2 and token not in WORKFLOW_STOPWORDS
+    ]
+
+
+def _workflow_similarity(left: str, right: str) -> tuple[float, int]:
+    left_tokens = _workflow_tokens(left)
+    right_tokens = _workflow_tokens(right)
+    if not left_tokens or not right_tokens:
+        return 0.0, 0
+    left_set = set(left_tokens)
+    right_set = set(right_tokens)
+    shared = len(left_set & right_set)
+    union = len(left_set | right_set)
+    jaccard = shared / union if union else 0.0
+    containment = shared / min(len(left_set), len(right_set))
+    # Containment catches a copied workflow wrapped in a longer explanatory
+    # section; Jaccard keeps unrelated generic prose from matching easily.
+    return round(max(jaccard, containment * 0.82), 3), shared
 
 
 def _check_skill_references(root: Path, rel_path: str, text: str) -> list[dict[str, Any]]:
@@ -431,6 +465,17 @@ def _skill_diagnostics(
 ) -> list[dict[str, Any]]:
     root = config.root.resolve()
     issues: list[dict[str, Any]] = list(inventory.get("validation_issues", []))
+    canonical_segments: list[dict[str, Any]] = []
+    skill_segments: list[dict[str, Any]] = []
+    for rel_path in _discover_source_paths(config):
+        text, findings = _read_source(root, rel_path, _project_excludes(config))
+        if text is None or findings:
+            continue
+        if rel_path.startswith(".agents/skills/") and PurePosixPath(rel_path).name == SKILL_FILE:
+            skill_segments.extend(_segments(rel_path, text))
+        else:
+            canonical_segments.extend(_segments(rel_path, text))
+
     name_paths: dict[str, list[str]] = {}
     for skill in inventory["skills"]:
         name = str(skill["name"])
@@ -521,22 +566,68 @@ def _skill_diagnostics(
                     }
                 )
     # Repeated procedures across docs and agent instructions are evidence of
-    # duplicated workflow, but do not copy source text into the report.
-    candidate_sources: dict[str, list[str]] = {}
-    for candidate in candidate_analysis["candidates"]:
-        key = re.sub(r"\W+", " ", str(candidate["heading"]).casefold()).strip()
-        if key:
-            candidate_sources.setdefault(key, []).append(str(candidate["source_path"]))
-    for paths in candidate_sources.values():
-        unique_paths = sorted(set(paths))
-        if len(unique_paths) > 1:
+    # duplicated workflow, but do not copy source text into the report. Compare
+    # content as well as headings so differently titled copies are detected.
+    duplicate_pairs: set[tuple[str, str]] = set()
+    candidates = candidate_analysis["candidates"]
+    for left, right in itertools.combinations(candidates, 2):
+        left_path = str(left["source_path"])
+        right_path = str(right["source_path"])
+        if left_path == right_path:
+            continue
+        similarity, shared_tokens = _workflow_similarity(
+            str(left.get("source_excerpt", "")),
+            str(right.get("source_excerpt", "")),
+        )
+        if shared_tokens < MIN_SHARED_WORKFLOW_TOKENS or similarity < MIN_WORKFLOW_SIMILARITY:
+            continue
+        pair = tuple(sorted((left_path, right_path)))
+        if pair in duplicate_pairs:
+            continue
+        duplicate_pairs.add(pair)
+        left_item, right_item = sorted((left, right), key=lambda item: str(item["source_path"]))
+        issues.append(
+            {
+                "type": "duplicate_workflow",
+                "severity": "warning",
+                "source_path": str(left_item["source_path"]),
+                "related_paths": [str(right_item["source_path"])],
+                "related_headings": [str(left_item["heading"]), str(right_item["heading"])],
+                "similarity": similarity,
+                "shared_tokens": shared_tokens,
+                "message": "Similar reusable workflow candidates appear in multiple canonical sources",
+            }
+        )
+
+    # A skill may repeat a project fact or workflow that should remain
+    # canonical in docs/ or AGENTS.md. Report metadata and paths only; never
+    # copy project-derived source text into the persisted audit.
+    ownership_pairs: set[tuple[str, str]] = set()
+    for skill_segment in skill_segments:
+        for canonical_segment in canonical_segments:
+            skill_path = str(skill_segment["source_path"])
+            canonical_path = str(canonical_segment["source_path"])
+            similarity, shared_tokens = _workflow_similarity(
+                str(skill_segment["text"]),
+                str(canonical_segment["text"]),
+            )
+            if shared_tokens < MIN_SHARED_WORKFLOW_TOKENS or similarity < 0.72:
+                continue
+            pair = (skill_path, canonical_path)
+            if pair in ownership_pairs:
+                continue
+            ownership_pairs.add(pair)
             issues.append(
                 {
-                    "type": "duplicate_workflow",
+                    "type": "skill_docs_ownership_conflict",
                     "severity": "warning",
-                    "source_path": unique_paths[0],
-                    "related_paths": unique_paths[1:],
-                    "message": "Similar reusable workflow candidates appear in multiple canonical sources",
+                    "source_path": skill_path,
+                    "related_path": canonical_path,
+                    "skill_heading": str(skill_segment["heading"]),
+                    "canonical_heading": str(canonical_segment["heading"]),
+                    "similarity": similarity,
+                    "shared_tokens": shared_tokens,
+                    "message": "Skill content overlaps canonical docs; keep project facts in docs and link from the skill",
                 }
             )
     return issues
@@ -640,6 +731,38 @@ def run_skill_audit(project: str | ProjectConfig, *, persist: bool = True) -> di
         },
     )
     return report
+
+
+def get_skill_intelligence_summary(project: str | ProjectConfig) -> dict[str, Any]:
+    """Return a compact, read-only Skill Intelligence summary for a profile."""
+    config = get_project_config(project) if isinstance(project, str) else project
+    report = validate_skill_architecture(config)
+    summary = report["summary"]
+    high_confidence = sum(
+        float(candidate.get("scores", {}).get("overall", 0)) >= 0.7
+        for candidate in report["candidates"]
+    )
+    last_audit_at: str | None = None
+    audit_path = _local_artifact_path(config, "audit")
+    if audit_path.is_file():
+        try:
+            stored = json.loads(audit_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            stored = {}
+        if stored.get("project") == config.project and stored.get("namespace") == config.namespace:
+            value = stored.get("audited_at")
+            last_audit_at = str(value) if value else None
+    return {
+        "status": report["status"],
+        "inventory_status": "blocked" if report["skills"].get("blocked_sources") else "ok",
+        "skill_count": summary["skill_count"],
+        "candidate_count": summary["candidate_count"],
+        "high_confidence_candidate_count": high_confidence,
+        "error_count": summary["error_count"],
+        "warning_count": summary["warning_count"],
+        "recommendation_count": summary["recommendation_count"],
+        "last_audit_at": last_audit_at,
+    }
 
 
 def create_skill_proposal(

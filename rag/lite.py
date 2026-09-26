@@ -381,6 +381,7 @@ def project_profile(project: str) -> dict[str, Any]:
     config = get_project_config(project)
     source_plan = build_source_plan(config)
     from .docs_quality import documentation_readiness
+    from .skill_intelligence import get_skill_intelligence_summary
 
     return {
         "project": config.project,
@@ -397,6 +398,7 @@ def project_profile(project: str) -> dict[str, Any]:
         "effective_exclude": source_plan.exclude,
         "mkdocs": source_plan.mkdocs.to_dict(),
         "documentation": documentation_readiness(config),
+        "skill_intelligence": get_skill_intelligence_summary(config),
         "agent_rules": config.agent_rules,
         "config_path": str(config.config_path.relative_to(HUB_ROOT)),
         "index_path": str(config.index_path.relative_to(HUB_ROOT)),
