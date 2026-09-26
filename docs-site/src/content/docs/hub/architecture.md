@@ -18,6 +18,7 @@ AI Docs Hub - локальный инфраструктурный репозит
 - Lite JSON/BM25 RAG: локальная индексация и поиск по разрешенной документации проектов, хранение в `storage/index`.
 - MCP stdio bridge: `mcp/server.py` отдает project-scoped tools для Codex и других MCP clients.
 - Optional Codebase Memory sidecar: отдельный MCP/CLI строит project-scoped SQLite graph исходного кода для symbols, calls, dependencies и impact analysis. Его cache живет в ignored `storage/codebase-memory`; docs RAG и Markdown ADR остаются независимыми source layers.
+- Skill Intelligence: локальный deterministic audit docs, `AGENTS.md` и `.agents/skills/*/SKILL.md`; audit/proposals хранятся в ignored `storage/skill-intelligence/<project>/`.
 - Local runtime: `scripts/hub-dev` супервизирует docs-site, watcher и local fix action server в foreground.
 - macOS `launchd`: optional persistent supervisor для того же `hub-dev`.
 - macOS menu bar app: optional Swift/AppKit wrapper для быстрого доступа к status/dashboard.
@@ -72,9 +73,22 @@ RAG backend по умолчанию - локальное JSON/BM25-хранил�
 
 Эти файлы являются derived artifacts и не редактируются вручную.
 
+## Skill Intelligence
+
+`rag/skill_intelligence.py` выполняет локальный детерминированный анализ без LLM/API:
+
+- переиспользует project config, effective source discovery, exclude/path safety и secret scan;
+- инвентаризирует `.agents/skills/*/SKILL.md` и классифицирует материал из разрешенных docs и root `AGENTS.md`;
+- выдает объяснимые workflow candidates, scope/reference/security diagnostics и структурированные proposal records;
+- сохраняет project-derived inventory, audit и proposals только в ignored `storage/skill-intelligence/<project>/`.
+
+`scripts/skill-audit --project <name>` и `make skill-audit PROJECT=<name>` выполняют read-only audit. MCP read tools передают Codex структурированный контекст; Hub не вызывает LLM и не генерирует `SKILL.md`.
+
+Apply использует только полное reviewed content, объявленные proposal target paths и `confirm=true`. Разрешены `.agents/skills/**`, `docs/**` и root `AGENTS.md`; target повторно проверяется на project-root containment, exclude rules, secret patterns и ожидаемый content hash. Запись в сам checkout Hub запрещена, даже если он указан как project root. Внешний проект не становится источником tracked Hub-файлов.
+
 ## MCP Bridge
 
-`mcp/server.py` - stdio MCP server. Он предоставляет tools для списка проектов, профилей, поиска, чтения разрешенных документов, индексации, lint, scaffold, healthcheck и operation logs.
+`mcp/server.py` - stdio MCP server. Он предоставляет tools для списка проектов, профилей, поиска, чтения разрешенных документов, индексации, lint, scaffold, Skill Intelligence, healthcheck и operation logs.
 
 MCP работает через stdout/stdin JSON-RPC. Stdout зарезервирован для protocol messages; logs должны идти в stderr.
 

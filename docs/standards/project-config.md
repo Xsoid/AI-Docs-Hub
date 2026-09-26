@@ -59,3 +59,5 @@ Validation отличает:
 Подключение конкретного проекта к локальному Hub является local-only операцией. Создание или обновление `configs/projects/*.yaml`, индекса проекта, generated project page, `llms*.txt`, Codebase Memory cache, project-scoped MCP entry или managed routing rules не должно создавать или изменять tracked-файлы в `docs/`, `docs-site/` или `docs/changes/`.
 
 Change note создается только при изменении самой политики или реализации подключения в AI Docs Hub. Для обычного onboarding отдельного проекта достаточно локального binding, generated artifacts и runtime status.
+
+Skill Intelligence работает в scope выбранного project config и namespace. Он читает effective documentation sources, а также только root `AGENTS.md` и `.agents/skills/*/SKILL.md`; эти agent paths не требуют добавления в docs include list, но проходят общие exclude/path/secret checks. Audit и proposal artifacts остаются в ignored `storage/skill-intelligence/<project>/`, а apply может менять только явно заявленные разрешенные пути внешнего project root.

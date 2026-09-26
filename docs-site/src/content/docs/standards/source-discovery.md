@@ -15,6 +15,8 @@ Source discovery строит effective source plan для каждого connec
 6. Apply path safety and exclude rules.
 7. Run secret scan before indexing or generated context.
 
+Skill Intelligence reuses the effective documentation sources and additionally checks only the canonical agent-workflow paths `AGENTS.md` and `.agents/skills/*/SKILL.md`. Those paths still pass through project-root safe resolution, default/configured excludes and content secret scanning; it does not introduce a second unrestricted project crawler.
+
 ## MkDocs Adapter
 
 Adapter read-only. Он может читать:

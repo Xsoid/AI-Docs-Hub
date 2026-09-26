@@ -24,6 +24,16 @@ from rag.lite import (  # noqa: E402
 )
 from rag.logging import read_operation_log  # noqa: E402
 from rag.scaffold import scaffold_project_docs  # noqa: E402
+from rag.skill_intelligence import (  # noqa: E402
+    analyze_skill_candidates,
+    apply_skill_proposal,
+    create_evolution_proposal,
+    create_skill_proposal,
+    get_skill_inventory,
+    get_skill_proposal,
+    run_skill_audit,
+    validate_skill_architecture,
+)
 
 
 Json = dict[str, Any]
@@ -44,6 +54,13 @@ class McpServer:
             "lint_project": self.tool_lint_project,
             "scaffold_project_docs": self.tool_scaffold_project_docs,
             "read_operation_log": self.tool_read_operation_log,
+            "analyze_skill_candidates": self.tool_analyze_skill_candidates,
+            "get_skill_inventory": self.tool_get_skill_inventory,
+            "get_skill_proposal": self.tool_get_skill_proposal,
+            "validate_skill_architecture": self.tool_validate_skill_architecture,
+            "create_skill_proposal": self.tool_create_skill_proposal,
+            "create_skill_evolution_proposal": self.tool_create_skill_evolution_proposal,
+            "apply_skill_proposal": self.tool_apply_skill_proposal,
         }
 
     def resolve_project(self, args: Json) -> str:
@@ -161,6 +178,89 @@ class McpServer:
             "log_entries": entries,
             "total_entries": len(entries),
         }
+
+    def tool_analyze_skill_candidates(self, args: Json) -> Json:
+        project = self.resolve_project(args)
+        report = run_skill_audit(project)
+        return {
+            "project": report["project"],
+            "namespace": report["namespace"],
+            "candidates": report["candidates"],
+            "classifications": report["classifications"],
+            "audited_at": report["audited_at"],
+        }
+
+    def tool_get_skill_inventory(self, args: Json) -> Json:
+        return get_skill_inventory(self.resolve_project(args))
+
+    def tool_get_skill_proposal(self, args: Json) -> Json:
+        project = self.resolve_project(args)
+        proposal_id = str(args.get("proposal_id", "")).strip()
+        if not proposal_id:
+            raise ValueError("proposal_id is required")
+        return get_skill_proposal(project, proposal_id)
+
+    def tool_validate_skill_architecture(self, args: Json) -> Json:
+        return validate_skill_architecture(self.resolve_project(args))
+
+    def tool_create_skill_proposal(self, args: Json) -> Json:
+        project = self.resolve_project(args)
+        action = str(args.get("action", "")).strip()
+        source_references = args.get("source_references")
+        target_paths = args.get("target_paths")
+        evidence = args.get("evidence")
+        if not isinstance(source_references, list) or not isinstance(target_paths, list) or not isinstance(evidence, list):
+            raise ValueError("source_references, target_paths, and evidence must be arrays")
+        return create_skill_proposal(
+            project,
+            action=action,
+            source_references=source_references,
+            target_paths=target_paths,
+            evidence=[str(item) for item in evidence],
+            confidence=float(args.get("confidence", 0)),
+            reason=str(args.get("reason", "")).strip(),
+            constraints=[str(item) for item in args.get("constraints", [])],
+            expected_canonical_changes=[
+                str(item) for item in args.get("expected_canonical_changes", [])
+            ],
+            validation_requirements=[
+                str(item) for item in args.get("validation_requirements", [])
+            ],
+        )
+
+    def tool_create_skill_evolution_proposal(self, args: Json) -> Json:
+        project = self.resolve_project(args)
+        required = ("target_skill_path", "rule", "evidence_type", "evidence_reference")
+        missing = [key for key in required if not str(args.get(key, "")).strip()]
+        if missing:
+            raise ValueError(f"Missing required fields: {', '.join(missing)}")
+        return create_evolution_proposal(
+            project,
+            target_skill_path=str(args["target_skill_path"]),
+            rule=str(args["rule"]),
+            evidence_type=str(args["evidence_type"]),
+            evidence_reference=str(args["evidence_reference"]),
+            explicit_user_correction=bool(args.get("explicit_user_correction", False)),
+            temporary_workaround=bool(args.get("temporary_workaround", False)),
+        )
+
+    def tool_apply_skill_proposal(self, args: Json) -> Json:
+        project = self.resolve_project(args)
+        proposal_id = str(args.get("proposal_id", "")).strip()
+        if not proposal_id:
+            raise ValueError("proposal_id is required")
+        files = args.get("files")
+        if files is not None and (
+            not isinstance(files, dict)
+            or any(not isinstance(path, str) or not isinstance(content, str) for path, content in files.items())
+        ):
+            raise ValueError("files must map project-relative paths to reviewed text content")
+        return apply_skill_proposal(
+            project,
+            proposal_id,
+            files=files,
+            confirm=bool(args.get("confirm", False)),
+        )
 
     def tool_specs(self) -> list[Json]:
         project_property = {
@@ -286,6 +386,121 @@ class McpServer:
                         "limit": {"type": "integer", "default": 20, "minimum": 1, "maximum": 100},
                     },
                     "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "analyze_skill_candidates",
+                "description": "Run a deterministic, read-only skill workflow analysis and store its report in local ignored storage.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"project": project_property},
+                    "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "get_skill_inventory",
+                "description": "Inventory project .agents/skills/*/SKILL.md files and their safe metadata.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"project": project_property},
+                    "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "get_skill_proposal",
+                "description": "Read one project-scoped, locally stored Skill Intelligence proposal.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "proposal_id": {"type": "string"},
+                    },
+                    "required": ["proposal_id"] if self.active_project else ["project", "proposal_id"],
+                },
+            },
+            {
+                "name": "validate_skill_architecture",
+                "description": "Validate skill frontmatter, references, boundaries, duplicates, and scope without applying changes.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"project": project_property},
+                    "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "create_skill_proposal",
+                "description": "Store a structured project-local proposal for Codex review; does not write project files.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "action": {
+                            "type": "string",
+                            "enum": [
+                                "create_skill", "extend_skill", "refactor_skill", "merge_skills",
+                                "split_skill", "move_skill_content_to_docs", "move_agents_content_to_skill",
+                                "remove_obsolete_rule", "no_change",
+                            ],
+                        },
+                        "source_references": {"type": "array", "items": {"type": "object"}},
+                        "target_paths": {"type": "array", "items": {"type": "string"}},
+                        "evidence": {"type": "array", "items": {"type": "string"}},
+                        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                        "reason": {"type": "string"},
+                        "constraints": {"type": "array", "items": {"type": "string"}},
+                        "expected_canonical_changes": {"type": "array", "items": {"type": "string"}},
+                        "validation_requirements": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": (
+                        ["action", "source_references", "target_paths", "evidence", "confidence", "reason"]
+                        if self.active_project
+                        else ["project", "action", "source_references", "target_paths", "evidence", "confidence", "reason"]
+                    ),
+                },
+            },
+            {
+                "name": "create_skill_evolution_proposal",
+                "description": "Propose a reusable skill improvement supported by verified code, regression, test, or explicit user-correction evidence.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "target_skill_path": {"type": "string"},
+                        "rule": {"type": "string"},
+                        "evidence_type": {
+                            "type": "string",
+                            "enum": ["working_code", "fixed_regression", "verified_test", "user_correction"],
+                        },
+                        "evidence_reference": {
+                            "type": "string",
+                            "description": "Verified project-relative evidence file, or user-correction:<id> for a confirmed correction.",
+                        },
+                        "explicit_user_correction": {"type": "boolean", "default": False},
+                        "temporary_workaround": {"type": "boolean", "default": False},
+                    },
+                    "required": (
+                        ["target_skill_path", "rule", "evidence_type", "evidence_reference"]
+                        if self.active_project
+                        else ["project", "target_skill_path", "rule", "evidence_type", "evidence_reference"]
+                    ),
+                },
+            },
+            {
+                "name": "apply_skill_proposal",
+                "description": "Apply reviewed replacement text only to proposal-declared project paths; confirm=true is mandatory.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "proposal_id": {"type": "string"},
+                        "files": {
+                            "type": "object",
+                            "additionalProperties": {"type": "string"},
+                            "description": "Complete reviewed replacement content keyed by exact proposal target path.",
+                        },
+                        "confirm": {"type": "boolean", "default": False},
+                    },
+                    "required": ["proposal_id"] if self.active_project else ["project", "proposal_id"],
                 },
             },
         ]

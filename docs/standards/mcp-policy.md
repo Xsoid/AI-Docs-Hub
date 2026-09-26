@@ -31,7 +31,14 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 - `healthcheck`;
 - `lint_project`;
 - `scaffold_project_docs`;
-- `read_operation_log`.
+- `read_operation_log`;
+- `analyze_skill_candidates`;
+- `get_skill_inventory`;
+- `get_skill_proposal`;
+- `validate_skill_architecture`;
+- `create_skill_proposal`;
+- `create_skill_evolution_proposal`;
+- `apply_skill_proposal`.
 
 ## Confirmation Rules
 
@@ -39,11 +46,13 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 
 `scaffold_project_docs` не пишет files в connected project root без `confirm=true`. Dry-run остается default.
 
+Skill Intelligence read tools project-scoped и не переключают namespace. Proposal/audit artifacts сохраняются локально в ignored storage. `apply_skill_proposal` принимает complete reviewed content только для точного набора proposal targets; без `confirm=true` он возвращает dry-run и ничего не записывает. Apply повторно проверяет project-root containment, allowed path surface, exclude rules, secret patterns и hash исходного файла. Hub не вызывает LLM для proposal transformation или генерации skills.
+
 ## Config Edits
 
 Global `~/.codex/config.toml` можно редактировать только когда задача требует Codex/MCP setup. Правки должны быть scoped и явно описаны пользователю.
 
-Project files считаются read-only, кроме явных scaffold write workflows.
+Project files считаются read-only, кроме explicit scaffold и Skill Intelligence proposal workflows с `confirm=true`.
 
 Подключение отдельного проекта к локальному Hub, включая project-scoped MCP entry и managed routing rules, не является изменением source documentation Hub. Такой onboarding не должен создавать tracked-файлы в `docs/`, `docs-site/` или `docs/changes/`. Change note нужен только для изменения самой политики или реализации этого workflow.
 

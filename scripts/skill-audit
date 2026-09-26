@@ -1,0 +1,67 @@
+#!/usr/bin/env python3.11
+"""Run a read-only Skill Architecture audit for one configured project."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from rag.skill_intelligence import run_skill_audit  # noqa: E402
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Audit agent skills and workflow ownership")
+    parser.add_argument("--project", required=True, help="Project name from configs/projects/")
+    parser.add_argument("--json", action="store_true", help="Output the machine-readable audit report")
+    args = parser.parse_args()
+
+    try:
+        report = run_skill_audit(args.project)
+    except Exception as exc:
+        print(f"Skill audit failed: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0
+
+    summary = report["summary"]
+    print("Skill Architecture Report")
+    print(f"Project: {report['project']} ({report['namespace']})")
+    print(f"Existing skills: {summary['skill_count']}")
+    for skill in report["skills"]["skills"]:
+        print(f"  - {skill['name'] or '(missing name)'}: {skill['path']}")
+    print(f"Workflow candidates: {summary['candidate_count']}")
+    print()
+    for candidate in report["candidates"]:
+        confidence = candidate["scores"]["overall"]
+        level = "HIGH" if confidence >= 0.7 else "MEDIUM" if confidence >= 0.45 else "LOW"
+        print(
+            f"{level}  {candidate['source_path']}:{candidate['start_line']}-{candidate['end_line']}\n"
+            f"      → {candidate.get('action', 'review')} ({candidate['heading']})\n"
+            f"      evidence: {', '.join(candidate['evidence']) or 'none'}"
+        )
+    for item in report["classifications"]:
+        if item["classification"] in {"canonical_fact", "global_guardrail"}:
+            print(
+                f"KEEP  {item['source_path']}:{item['start_line']}-{item['end_line']}\n"
+                f"      → {item['classification']}: {item['heading']}"
+            )
+    for issue in report["issues"]:
+        print(f"{issue['severity'].upper():14} {issue['source_path']}: {issue['message']}")
+    print()
+    print(
+        f"Validation: {summary['error_count']} errors, {summary['warning_count']} warnings, "
+        f"{summary['recommendation_count']} recommendations"
+    )
+    print("No project files were changed.")
+    return 0 if report["status"] == "ok" else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

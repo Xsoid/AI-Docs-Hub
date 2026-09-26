@@ -116,6 +116,8 @@ docs-site/public/llms*.txt
 
 # Generated artifacts, local indexes, and mutable storage
 storage/*
+# Project-derived Skill Intelligence reports and proposals are local-only.
+storage/skill-intelligence/
 !storage/.gitkeep
 !storage/index/
 storage/index/*

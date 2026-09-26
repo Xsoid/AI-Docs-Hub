@@ -15,6 +15,7 @@ AI Docs Hub - это локальная multi-stack система. У кажд�
 - YAML project config: `configs/projects/*.yaml` задают project root, namespace, source include/exclude rules, agent rules и docs backend mode;
 - MkDocs adapter: read-only structural discovery для проектов с `mkdocs.yml` или `mkdocs.yaml`; adapter не запускает MkDocs plugins, hooks, Python code или Markdown extensions;
 - Lite JSON/BM25 RAG: локальная индексация и поиск по разрешенной документации проектов, хранение в `storage/index`;
+- Skill Intelligence: локальный deterministic audit docs, `AGENTS.md` и `.agents/skills/*/SKILL.md`; audit/proposals хранятся в ignored `storage/skill-intelligence/<project>/`;
 - MCP stdio bridge: `mcp/server.py` отдает project-scoped tools для Codex и других MCP clients через JSON-RPC stdio;
 - optional Codebase Memory sidecar: отдельный MCP/CLI строит project-scoped SQLite graph исходного кода для symbols, calls, dependencies и impact analysis; cache хранится в ignored `storage/codebase-memory`;
 - local runtime: `scripts/hub-dev` супервизирует docs-site, watcher и local fix action server в foreground; macOS `launchd` может запускать тот же supervisor persistently;
@@ -89,6 +90,19 @@ Status page показывает RAG backend, количество source-фай
 
 Так Хаб остается read-only по умолчанию, но может явно помогать довести проект до рекомендуемой docs-структуры.
 
+### Skill Intelligence
+
+`rag/skill_intelligence.py` выполняет локальный детерминированный анализ без LLM/API:
+
+- переиспользует project config, effective source discovery, exclude/path safety и secret scan;
+- инвентаризирует `.agents/skills/*/SKILL.md` и классифицирует материал из разрешенных docs и root `AGENTS.md`;
+- выдает объяснимые workflow candidates, scope/reference/security diagnostics и структурированные proposal records;
+- сохраняет project-derived inventory, audit и proposals только в ignored `storage/skill-intelligence/<project>/`.
+
+`scripts/skill-audit --project <name>` и `make skill-audit PROJECT=<name>` выполняют read-only audit. MCP read tools передают Codex структурированный контекст; Hub не вызывает LLM и не генерирует `SKILL.md`.
+
+Apply использует только полное reviewed content, объявленные proposal target paths и `confirm=true`. Разрешены `.agents/skills/**`, `docs/**` и root `AGENTS.md`; target повторно проверяется на project-root containment, exclude rules, secret patterns и ожидаемый content hash. Запись в сам checkout Hub запрещена, даже если он указан как project root. Внешний проект не становится источником tracked Hub-файлов.
+
 ### Generated-Контекст
 
 `scripts/generate-llms` создает `llms.txt`, `llms-full.txt` и `llms-small.txt`.
@@ -97,7 +111,7 @@ Status page показывает RAG backend, количество source-фай
 
 ### MCP Bridge
 
-`mcp/server.py` - stdio MCP server. Он предоставляет scoped-инструменты для списка проектов, чтения документации, поиска по индексам, индексации проектов, lint-проверки документации и healthcheck.
+`mcp/server.py` - stdio MCP server. Он предоставляет scoped-инструменты для списка проектов, чтения документации, поиска по индексам, индексации проектов, lint-проверки, Skill Intelligence и healthcheck.
 
 Так как сервер работает через stdio, MCP обычно запускается клиентом, который его использует. По умолчанию это не long-running HTTP service.
 

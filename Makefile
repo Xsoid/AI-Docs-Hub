@@ -1,7 +1,7 @@
 PYTHON ?= python3.11
 PROJECT ?= example-project
 
-.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write logs clean-cache validate-configs
+.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -113,6 +113,9 @@ scaffold-docs:
 
 scaffold-docs-write:
 	$(PYTHON) scripts/scaffold-project-docs --project "$(PROJECT)" --write
+
+skill-audit:
+	$(PYTHON) scripts/skill-audit --project "$(PROJECT)"
 
 logs:
 	$(PYTHON) scripts/read-logs --project "$(PROJECT)"

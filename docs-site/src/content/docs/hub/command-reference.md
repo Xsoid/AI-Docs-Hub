@@ -85,12 +85,16 @@ Generated artifacts не редактируются вручную.
 
 | Команда | Назначение |
 | --- | --- |
-| `make lint PROJECT=name` | Проверить broken wiki-links, orphan pages, empty docs, duplicate headings и documentation readiness. |
+| `make lint PROJECT=name` | Проверить документацию и skill architecture: ссылки, пустые docs, дубликаты, readiness и skill validation. |
 | `make scaffold-docs PROJECT=name` | Dry-run плана starter docs для проекта. |
 | `make scaffold-docs-write PROJECT=name` | Явно создать missing starter docs в подключенном проекте. |
+| `make skill-audit PROJECT=name` | Выполнить read-only Skill Architecture audit с локальным JSON report в ignored storage. |
+| `python3.11 scripts/skill-audit --project name --json` | Вернуть machine-readable skill inventory, workflow candidates и validation diagnostics. |
 | `make logs PROJECT=name` | Прочитать operation log проекта из `storage/index/{project}_log.jsonl`. |
 
 `scaffold-docs-write` является явным разрешением на запись в connected project root. Non-empty files не перезаписываются.
+
+`skill-audit` не меняет project files. Skill proposals также ничего не меняют, пока Codex не передаст reviewed content и `confirm=true` в `apply_skill_proposal`. Результаты внешнего проекта хранятся только локально в `storage/skill-intelligence/<project>/`.
 
 ## MCP Tools
 
@@ -106,7 +110,14 @@ Generated artifacts не редактируются вручную.
 - `healthcheck`;
 - `lint_project`;
 - `scaffold_project_docs`;
-- `read_operation_log`.
+- `read_operation_log`;
+- `analyze_skill_candidates`;
+- `get_skill_inventory`;
+- `get_skill_proposal`;
+- `validate_skill_architecture`;
+- `create_skill_proposal`;
+- `create_skill_evolution_proposal`;
+- `apply_skill_proposal`.
 
 `index_project` требует `confirm=true`, чтобы начать indexing через MCP. `scaffold_project_docs` требует `confirm=true`, чтобы писать files в подключенный проект.
 

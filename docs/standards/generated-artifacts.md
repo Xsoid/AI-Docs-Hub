@@ -14,6 +14,7 @@ Generated artifacts являются производными от docs-as-code 
 - `storage/logs/*`;
 - `build/AI Docs Hub.app`.
 - `storage/runtime/bin/codebase-memory-mcp` и `storage/codebase-memory/*`.
+- `storage/skill-intelligence/<project>/*` — project-derived skill inventory, audits и proposals; artifacts не коммитятся и не зеркалируются в docs-site.
 
 ## Правила
 
@@ -22,6 +23,7 @@ Generated artifacts являются производными от docs-as-code 
 - Generated artifacts можно пересоздавать командами `make project-pages`, `make llms`, `make index`, `make docs-build`.
 - Allowlisted fix action `rag.reindex` пересоздает project index и после успешной индексации запускает regeneration `llms*.txt`.
 - Generated project pages являются web-представлением configs/index/readiness, а не source docs проекта.
+- Skill Intelligence inventory, audit и proposal JSON являются local-only derived artifacts. Для внешнего проекта их единственное Hub-хранилище — ignored `storage/skill-intelligence/<project>/`; apply пишет только в разрешенные paths внутри внешнего project root.
 
 ## Status
 

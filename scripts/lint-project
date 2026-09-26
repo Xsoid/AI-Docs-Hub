@@ -57,6 +57,8 @@ def main() -> None:
             print(f"  • Chunks: {stats.get('total_chunks', 0)}")
             print(f"  • Issues: {stats.get('total_issues', 0)}")
             print(f"  • Documentation coverage: {stats.get('documentation_coverage_percent', 0)}%")
+            print(f"  • Skills: {stats.get('skill_count', 0)}")
+            print(f"  • Skill workflow candidates: {stats.get('skill_candidates', 0)}")
             print()
             
             if stats.get("total_issues", 0) > 0:
@@ -68,6 +70,7 @@ def main() -> None:
                     "missing_frontmatter",
                     "duplicate_headings",
                     "documentation_gaps",
+                    "skill_issues",
                 ]:
                     count = stats.get(key, 0)
                     if count > 0:
@@ -77,7 +80,7 @@ def main() -> None:
                 print(f"📝 Issues:")
                 for issue in report.get("issues", [])[:10]:  # Show first 10
                     severity = issue.get("severity", "info")
-                    icon = {"critical": "🔴", "warning": "🟡", "info": "ℹ️"}.get(severity, "⚪")
+                    icon = {"critical": "🔴", "error": "🔴", "warning": "🟡", "info": "ℹ️"}.get(severity, "⚪")
                     print(f"  {icon} [{issue['type']}] {issue['source_path']}: {issue['message']}")
                 
                 if len(report.get("issues", [])) > 10:

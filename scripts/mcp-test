@@ -53,7 +53,19 @@ def main() -> int:
             },
         )
         names = [tool["name"] for tool in tools["result"]["tools"]]
-        ok = "search_docs" in names and "read_doc" in names and "healthcheck" in names
+        expected_tools = {
+            "search_docs",
+            "read_doc",
+            "healthcheck",
+            "analyze_skill_candidates",
+            "get_skill_inventory",
+            "get_skill_proposal",
+            "validate_skill_architecture",
+            "create_skill_proposal",
+            "create_skill_evolution_proposal",
+            "apply_skill_proposal",
+        }
+        ok = expected_tools.issubset(names)
         print(json.dumps({"initialize": init, "tools": names, "healthcheck": health, "ok": ok}, indent=2))
         return 0 if ok else 1
     finally:

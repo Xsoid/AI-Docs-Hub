@@ -7,6 +7,7 @@ from typing import Any
 from .config import ProjectConfig, get_project_config
 from .docs_quality import documentation_readiness
 from .lite import collect_project_files, load_index
+from .skill_intelligence import validate_skill_architecture
 from .wiki_links import extract_wiki_links
 
 
@@ -30,6 +31,21 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
     config = get_project_config(project)
     readiness = documentation_readiness(config)
     readiness_issues = _readiness_to_issues(readiness)
+    skill_validation = validate_skill_architecture(config)
+    raw_skill_issues = skill_validation["issues"]
+    skill_issues = [
+        {
+            **issue,
+            "type": f"skill_{issue['type']}",
+        }
+        for issue in raw_skill_issues
+        if issue["severity"] != "recommendation"
+    ]
+    skill_recommendations = [
+        {**issue, "severity": "info"}
+        for issue in raw_skill_issues
+        if issue["severity"] == "recommendation"
+    ]
     
     try:
         index = load_index(project)
@@ -38,15 +54,21 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
             "project": project,
             "status": "not_indexed",
             "message": f"Project not indexed. Run: make index PROJECT={project}",
-            "issues": readiness_issues,
             "statistics": {
                 "total_documents": 0,
-                "total_issues": len(readiness_issues),
+                "total_issues": len(readiness_issues) + len(skill_issues),
                 "documentation_gaps": len(readiness_issues),
+                "skill_issues": len(skill_issues),
+                "skill_recommendations": len(skill_recommendations),
+                "skill_count": skill_validation["summary"]["skill_count"],
+                "skill_candidates": skill_validation["summary"]["candidate_count"],
                 "documentation_coverage_percent": readiness.get("coverage", {}).get("percent", 0),
             },
+            "issues": readiness_issues + skill_issues,
             "documentation": readiness,
-            "recommendations": readiness.get("recommendations", []),
+            "skill_architecture": skill_validation,
+            "recommendations": readiness.get("recommendations", [])
+            + _skill_recommendations(skill_recommendations),
         }
     
     # Collect all available paths
@@ -79,6 +101,9 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
 
     # 6. Check project documentation completeness against hub standards
     issues.extend(readiness_issues)
+
+    # 7. Check agent-skill architecture without making recommendations blocking.
+    issues.extend(skill_issues)
     
     # Categorize issues
     statistics = {
@@ -92,12 +117,16 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
         "duplicate_headings": len([i for i in issues if i["type"] == "duplicate_heading"]),
         "documentation_gaps": len([i for i in issues if i["type"] == "documentation_gap"]),
         "documentation_coverage_percent": readiness.get("coverage", {}).get("percent", 0),
+        "skill_issues": len(skill_issues),
+        "skill_recommendations": len(skill_recommendations),
+        "skill_count": skill_validation["summary"]["skill_count"],
+        "skill_candidates": skill_validation["summary"]["candidate_count"],
     }
     
     # Sort by severity and source_path
     issues.sort(
         key=lambda x: (
-            {"critical": 0, "warning": 1, "info": 2}.get(x.get("severity", "info"), 3),
+            {"critical": 0, "error": 0, "warning": 1, "info": 2}.get(x.get("severity", "info"), 3),
             x.get("source_path", ""),
         )
     )
@@ -109,8 +138,18 @@ def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
         "issues": issues,
         "statistics": statistics,
         "documentation": readiness,
-        "recommendations": _generate_recommendations(issues, statistics),
+        "skill_architecture": skill_validation,
+        "recommendations": _generate_recommendations(issues, statistics)
+        + _skill_recommendations(skill_recommendations),
     }
+
+
+def _skill_recommendations(issues: list[dict[str, Any]]) -> list[str]:
+    return [
+        f"Skill architecture: {issue['message']} ({issue.get('source_path', 'project')})"
+        for issue in issues
+        if issue["severity"] == "info"
+    ]
 
 
 def _readiness_to_issues(readiness: dict[str, Any]) -> list[dict[str, Any]]:

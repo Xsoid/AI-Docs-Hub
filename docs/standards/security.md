@@ -29,6 +29,10 @@ Lite RAG indexing использует режим skip: suspicious source files 
 
 Read operations должны использовать safe path resolution относительно project root. Запросы на path traversal или excluded path должны отклоняться.
 
+Skill Intelligence применяет те же exclude, safe path и secret scanning правила. Secret-looking skill content блокирует validation/apply. Запись proposal по умолчанию является dry-run; при `confirm=true` разрешены только exact proposal targets внутри external project root: `.agents/skills/**`, `docs/**` и root `AGENTS.md`. Сам checkout AI Docs Hub запрещен как write target. Перед каждой записью проверяются containment, exclude rules, secret patterns и ожидаемый hash существующего target.
+
+Внешние docs, skills, proposals и audit reports подключенных проектов нельзя сохранять в tracked AI Docs Hub files. Их project-derived copies допустимы только в ignored local storage.
+
 ## Namespace Isolation
 
 - Не смешивать project namespaces без прямого запроса пользователя.
