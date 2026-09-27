@@ -725,6 +725,7 @@ def _source_snapshot(config: ProjectConfig) -> dict[str, dict[str, Any]]:
                 "mtime": datetime.fromtimestamp(stat_result.st_mtime, timezone.utc).isoformat(),
                 "mtime_ns": stat_result.st_mtime_ns,
                 "size": stat_result.st_size,
+                "content_hash": hashlib.sha256(path.read_bytes()).hexdigest(),
             }
     return snapshot
 
@@ -747,6 +748,12 @@ def _audit_source_changes(config: ProjectConfig, report: dict[str, Any]) -> list
         try:
             current_path = safe_resolve(root, rel_path)
             current_stat = current_path.stat()
+            stored_content_hash = metadata.get("content_hash")
+            if stored_content_hash:
+                current_content_hash = hashlib.sha256(current_path.read_bytes()).hexdigest()
+                if current_content_hash != str(stored_content_hash):
+                    changed.add(rel_path)
+                continue
             stored_mtime_ns = metadata.get("mtime_ns")
             if stored_mtime_ns is not None:
                 if current_stat.st_mtime_ns != int(stored_mtime_ns):

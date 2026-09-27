@@ -137,6 +137,10 @@ class SkillIntelligenceIsolationTests(unittest.TestCase):
             run_skill_audit(self.config)
             fresh = get_stored_skill_intelligence_status(self.config)
             source = self.project_root / "docs" / "workflow.md"
+            touched = source.stat().st_mtime + 2
+            os.utime(source, (touched, touched))
+            unchanged = get_stored_skill_intelligence_status(self.config)
+            self.assertEqual(unchanged["freshness"], "fresh")
             source.write_text(source.read_text(encoding="utf-8") + "\nNew verified step.\n", encoding="utf-8")
             future = source.stat().st_mtime + 2
             os.utime(source, (future, future))

@@ -85,7 +85,7 @@ RAG backend по умолчанию - локальное JSON/BM25-хранил�
 
 `scripts/skill-audit --project <name>` и `make skill-audit PROJECT=<name>` выполняют read-only audit. MCP read tools передают Codex структурированный контекст; Hub не вызывает LLM и не генерирует `SKILL.md`.
 
-`get_project_profile` включает компактный `skill_intelligence` summary: status inventory, число skills и кандидатов, high-confidence candidates, validation errors/warnings/recommendations и timestamp последнего сохраненного audit. Построение summary read-only и не заменяет полный audit report.
+`get_project_profile` включает компактный `skill_intelligence` summary: status inventory, число skills и кандидатов, high-confidence candidates, validation errors/warnings/recommendations и timestamp последнего сохраненного audit. Freshness сохраненного audit определяется по SHA-256 содержимого разрешенных source-файлов; изменение только `mtime` не создает ложный `stale`. Старые reports без content hash временно используют legacy metadata до следующего audit. Построение summary read-only и не заменяет полный audit report.
 
 Apply использует только полное reviewed content, объявленные proposal target paths и `confirm=true`. Разрешены `.agents/skills/**`, `docs/**` и root `AGENTS.md`; target повторно проверяется на project-root containment, exclude rules, secret patterns и ожидаемый content hash. Запись в сам checkout Hub запрещена, даже если он указан как project root. Внешний проект не становится источником tracked Hub-файлов.
 
