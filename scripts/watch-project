@@ -15,6 +15,7 @@ from rag.config import HUB_ROOT, ProjectConfig, get_project_config, load_project
 from rag.lite import build_index, collect_project_files  # noqa: E402
 from rag.mkdocs import ALTERNATE_MKDOCS_CONFIG, DEFAULT_MKDOCS_CONFIG  # noqa: E402
 from rag.security import safe_resolve  # noqa: E402
+from rag.skill_intelligence import get_skill_intelligence_source_paths, run_skill_audit  # noqa: E402
 
 
 @dataclass
@@ -22,6 +23,7 @@ class WatchState:
     snapshot: dict[str, tuple[int, int]]
     last_seen_change_at: float | None = None
     last_attempted_snapshot_key: tuple[tuple[str, int, int], ...] | None = None
+    retry_after: float | None = None
     pending: bool = False
     skipped_notice_printed: bool = False
 
@@ -48,6 +50,14 @@ def snapshot_project(config: ProjectConfig) -> dict[str, tuple[int, int]]:
                 snapshot[rel] = (stat.st_mtime_ns, stat.st_size)
             else:
                 snapshot[rel] = (0, 0)
+    for rel in get_skill_intelligence_source_paths(config):
+        try:
+            path = safe_resolve(root, rel)
+        except ValueError:
+            continue
+        if path.is_file():
+            stat = path.stat()
+            snapshot[rel] = (stat.st_mtime_ns, stat.st_size)
     return snapshot
 
 
@@ -60,6 +70,16 @@ def _mkdocs_config_watch_paths(config: ProjectConfig) -> list[str]:
 
 def snapshot_key(snapshot: dict[str, tuple[int, int]]) -> tuple[tuple[str, int, int], ...]:
     return tuple(sorted((path, mtime_ns, size) for path, (mtime_ns, size) in snapshot.items()))
+
+
+def can_attempt_snapshot(
+    state: WatchState,
+    key: tuple[tuple[str, int, int], ...],
+    now: float,
+) -> bool:
+    if key != state.last_attempted_snapshot_key:
+        return True
+    return state.retry_after is None or now >= state.retry_after
 
 
 def config_is_watchable(config: ProjectConfig) -> tuple[bool, str]:
@@ -111,6 +131,34 @@ def reindex(config: ProjectConfig, generate_llms: bool) -> bool:
         return False
 
 
+def audit_skills(config: ProjectConfig) -> bool:
+    """Refresh the persisted read-only Skill Intelligence report."""
+    try:
+        report = run_skill_audit(config)
+        summary = report["summary"]
+        log(
+            f"audited {config.project}: "
+            f"{summary['skill_count']} skills, {summary['candidate_count']} candidates, "
+            f"status={report['status']}"
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        log(f"skill audit failed for {config.project}: {exc}")
+        return False
+
+
+def refresh_project(
+    config: ProjectConfig,
+    *,
+    generate_llms: bool,
+    skill_audit: bool = True,
+) -> bool:
+    """Refresh derived context after a debounced source change."""
+    index_ok = reindex(config, generate_llms=generate_llms)
+    audit_ok = audit_skills(config) if skill_audit else True
+    return index_ok and audit_ok
+
+
 def load_watch_configs(args: argparse.Namespace) -> dict[str, ProjectConfig]:
     if args.all:
         configs = load_project_configs()
@@ -126,6 +174,11 @@ def main() -> int:
     parser.add_argument("--interval", type=float, default=2.0, help="Polling interval in seconds")
     parser.add_argument("--debounce", type=float, default=1.5, help="Quiet time before reindexing")
     parser.add_argument("--no-llms", action="store_true", help="Do not regenerate llms*.txt after indexing")
+    parser.add_argument(
+        "--no-skill-audit",
+        action="store_true",
+        help="Do not refresh the read-only Skill Intelligence audit after source changes",
+    )
     parser.add_argument(
         "--no-initial-index",
         action="store_true",
@@ -145,7 +198,9 @@ def main() -> int:
 
     log(
         "starting watcher "
-        f"(interval={args.interval}s, debounce={args.debounce}s, llms={'on' if generate_llms else 'off'})"
+        f"(interval={args.interval}s, debounce={args.debounce}s, "
+        f"llms={'on' if generate_llms else 'off'}, "
+        f"skill-audit={'off' if args.no_skill_audit else 'on'})"
     )
 
     try:
@@ -184,6 +239,8 @@ def main() -> int:
                     state.snapshot = current
                     state.pending = True
                     state.last_seen_change_at = now
+                    state.last_attempted_snapshot_key = None
+                    state.retry_after = None
                     preview = ", ".join(changes[:5])
                     if len(changes) > 5:
                         preview += f", +{len(changes) - 5} more"
@@ -193,13 +250,19 @@ def main() -> int:
                     if now - state.last_seen_change_at < args.debounce:
                         continue
                     key = snapshot_key(state.snapshot)
-                    if key == state.last_attempted_snapshot_key:
-                        state.pending = False
+                    if not can_attempt_snapshot(state, key, now):
                         continue
                     state.last_attempted_snapshot_key = key
-                    ok = reindex(config, generate_llms=generate_llms)
+                    ok = refresh_project(
+                        config,
+                        generate_llms=generate_llms,
+                        skill_audit=not args.no_skill_audit,
+                    )
                     if ok:
                         state.pending = False
+                        state.retry_after = None
+                    else:
+                        state.retry_after = now + max(args.interval, 1.0)
 
             time.sleep(args.interval)
     except KeyboardInterrupt:

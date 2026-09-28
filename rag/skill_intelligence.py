@@ -239,6 +239,11 @@ def _discover_source_paths(config: ProjectConfig) -> list[str]:
     )
 
 
+def get_skill_intelligence_source_paths(config: ProjectConfig) -> list[str]:
+    """Return the safe, project-relative paths used by Skill Intelligence."""
+    return _discover_source_paths(config)
+
+
 def _project_excludes(config: ProjectConfig) -> list[str]:
     return build_source_plan(config).exclude
 

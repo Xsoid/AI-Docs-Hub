@@ -100,7 +100,7 @@ make watch-all
 
 Watcher работает в foreground-режиме, пишет логи в stdout и останавливается по `Ctrl+C` или при завершении родительской сессии, если он не установлен через supervisor.
 
-`make hub-dev` запускает watcher через `scripts/watch-project --all`, префиксует его логи как `[watch]` и пишет heartbeat в `storage/runtime/hub-dev.status.json`.
+`make hub-dev` запускает watcher через `scripts/watch-project --all`, префиксует его логи как `[watch]` и пишет heartbeat в `storage/runtime/hub-dev.status.json`. Watcher также обновляет read-only Skill Intelligence audit после debounced изменения project-docs; отключение возможно через `scripts/watch-project --all --no-skill-audit`.
 
 ## Проверка "Жив Ли Хаб?"
 

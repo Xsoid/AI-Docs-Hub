@@ -53,6 +53,8 @@ Foreground supervisor:
 - пишет heartbeat/status file;
 - останавливает дочерние процессы при `Ctrl+C`, `SIGTERM` или падении child process.
 
+Watcher после debounced изменения разрешенных project-docs переиндексирует project namespace, обновляет generated context и запускает read-only Skill Intelligence audit. Поэтому сохраненный audit не остается stale после обычной работы при запущенном `hub-dev`. При временной ошибке watcher повторяет тот же snapshot после короткой задержки и не подделывает fresh status. Для намеренного отключения audit используется `scripts/watch-project --all --no-skill-audit`.
+
 Полезные options:
 
 ```sh

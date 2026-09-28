@@ -73,11 +73,13 @@ Generated artifacts не редактируются вручную.
 | `make reindex PROJECT=name` | Удалить существующий index и построить заново. |
 | `python3.11 scripts/apply-fix --action rag.reindex --project name` | Allowlisted repair action: переиндексировать project namespace и регенерировать `llms*.txt`. |
 | `make index-all` | Индексировать все валидные project configs. |
-| `make watch PROJECT=name` | Следить за одним проектом и переиндексировать при изменениях. |
-| `make watch-all` | Следить за всеми watchable проектами. |
+| `make watch PROJECT=name` | Следить за одним проектом, переиндексировать при изменениях и обновлять read-only Skill Intelligence audit. |
+| `make watch-all` | Следить за всеми watchable проектами, включая автоматическое обновление Skill Intelligence audit. |
 | `make check-secrets PROJECT=name` | Проверить разрешенные files проекта на secret-looking paths/content. |
 
 Индексация пишет локальные JSON/BM25 indexes в `storage/index`.
+
+Для намеренного отключения автоматического audit запустите `scripts/watch-project --all --no-skill-audit`; status тогда честно покажет stale audit после изменения источников.
 
 `scripts/apply-fix` принимает только allowlisted actions. Для runtime доступны `docs-site.restart`, `runtime.start` и `runtime.install-start`; из dashboard они запускаются как фоновые jobs через `/api/apply-fix.json`.
 

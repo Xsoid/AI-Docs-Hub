@@ -35,7 +35,7 @@ make watch PROJECT=project-name
 make watch-all
 ```
 
-Watcher poll-ит configured include paths, MkDocs config path при enabled source discovery, применяет exclude rules, debounces changes, запускает secret scan, обновляет local project index и после успешного indexing регенерирует `llms*.txt`.
+Watcher poll-ит configured include paths, MkDocs config path при enabled source discovery, применяет exclude rules, debounces changes, запускает secret scan, обновляет local project index, после успешного indexing регенерирует `llms*.txt` и обновляет read-only Skill Intelligence audit. Автоматический audit можно отключить только явным `--no-skill-audit`.
 
 ## Status Diagnostics
 

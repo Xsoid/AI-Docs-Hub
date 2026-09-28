@@ -32,7 +32,7 @@ Required components define `DOWN`. Optional components can define `DEGRADED`.
 
 `codebase-memory` является optional: отсутствующий binary, недоступный CLI или отсутствие графов дает warning/`DEGRADED`, но не `DOWN`.
 
-`skill-intelligence` является optional: status читает сохраненные локальные audit reports из `storage/skill-intelligence/<project>/audit.json`, но сам audit не запускает. Freshness audit определяется по SHA-256 содержимого разрешенных source-файлов; одно изменение `mtime` без изменения содержимого не считается stale. Старые reports без content hash временно используют legacy metadata до следующего audit. Отсутствующий или устаревший audit дает warning/`DEGRADED`; blocked или invalid report дает error внутри optional component.
+`skill-intelligence` является optional: status читает сохраненные локальные audit reports из `storage/skill-intelligence/<project>/audit.json`, но сам audit не запускает. Запущенный watcher автоматически обновляет read-only audit после debounced изменения разрешенных project-docs; без watcher доступна явная dashboard action. Freshness audit определяется по SHA-256 содержимого разрешенных source-файлов; одно изменение `mtime` без изменения содержимого не считается stale. Старые reports без content hash временно используют legacy metadata до следующего audit. Отсутствующий или устаревший audit дает warning/`DEGRADED`; blocked или invalid report дает error внутри optional component.
 
 Documentation readiness gaps are recommendations. Они должны оставаться видимыми, но не должны переводить repository/runtime status в degraded сами по себе.
 

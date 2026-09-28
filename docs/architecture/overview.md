@@ -75,7 +75,7 @@ RAG backend по умолчанию - локальное JSON/BM25-хранил�
 
 Status page показывает RAG backend, количество source-файлов, indexed documents, chunks, путь к индексу, время индексации, newest source timestamp и freshness по каждому проекту. Stale index является operational warning, потому что поиск может отставать от docs-as-code.
 
-Status page также показывает optional Skill Intelligence component: наличие audit, freshness относительно разрешенных source-файлов, количество skills/candidates, high-confidence candidates и validation warnings/errors по каждому проекту. Freshness определяется по SHA-256 содержимого source-файлов; изменение только времени модификации не делает audit stale. Старые reports без content hash проверяются по legacy metadata до следующего audit. Status только читает сохраненный ignored report; read-only audit запускается явно кнопкой `skill-audit` в dashboard.
+Status page также показывает optional Skill Intelligence component: наличие audit, freshness относительно разрешенных source-файлов, количество skills/candidates, high-confidence candidates и validation warnings/errors по каждому проекту. Freshness определяется по SHA-256 содержимого source-файлов; изменение только времени модификации не делает audit stale. Старые reports без content hash проверяются по legacy metadata до следующего audit. Status только читает сохраненный ignored report; watcher после debounced изменения project-docs автоматически обновляет его read-only audit. Кнопка `skill-audit` в dashboard остается явным способом немедленного обновления, если watcher не запущен.
 
 ### Documentation Scaffold
 
@@ -126,7 +126,7 @@ Project Lifecycle использует existing project config, secret/path safe
 
 ### Watcher-Ы
 
-`scripts/watch-project` может следить за одним настроенным проектом или за всеми валидными проектами и переиндексировать их при изменении source-документации.
+`scripts/watch-project` может следить за одним настроенным проектом или за всеми валидными проектами и после debounced изменения source-документации переиндексировать их, обновлять generated context и запускать read-only Skill Intelligence audit.
 
 Watcher работает в foreground-режиме через `make watch`, `make watch-all` или как дочерний процесс `make hub-dev`.
 

@@ -85,7 +85,7 @@ http://localhost:4321/status/
 - docs-readiness: coverage и recommendations;
 - skill-intelligence: freshness и counts сохраненных per-project Skill Intelligence audits;
 - mcp: stdio server, `tools/list` и MCP `healthcheck`;
-- watcher: heartbeat от `hub-dev`.
+- watcher: heartbeat от `hub-dev`; после изменений project-docs он также обновляет read-only Skill Intelligence audit.
 
 ## Статусы
 

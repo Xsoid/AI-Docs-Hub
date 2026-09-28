@@ -148,7 +148,7 @@ make watch PROJECT=my-project
 make watch-all
 ```
 
-Перед индексированием выполняется secret scan. Если найден suspicious path или content, index write блокируется.
+Перед индексированием выполняется secret scan. Если найден suspicious path или content, index write блокируется. После debounced изменения watcher также обновляет read-only Skill Intelligence audit; отключение возможно через `scripts/watch-project --all --no-skill-audit`.
 
 ## Documentation Quality
 

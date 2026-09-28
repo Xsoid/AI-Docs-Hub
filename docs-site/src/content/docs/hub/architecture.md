@@ -128,7 +128,7 @@ GUI dashboard доступен на:
 http://localhost:4321/status/
 ```
 
-Dashboard объединяет optional Skill Intelligence diagnostics: сохраненный audit report, freshness относительно source-файлов, counts skills/candidates и validation warnings/errors. Он не запускает audit автоматически; кнопка `skill-audit` явно обновляет read-only report через локальный fix server.
+Dashboard объединяет optional Skill Intelligence diagnostics: сохраненный audit report, freshness относительно source-файлов, counts skills/candidates и validation warnings/errors. Сам status endpoint audit не запускает. Работающий watcher после debounced изменения project-docs автоматически обновляет read-only report; кнопка `skill-audit` явно обновляет его через локальный fix server, если watcher не запущен.
 
 Важно: штатный docs-site слушает HTTP, а не HTTPS. URL `https://localhost:4321/` не является ожидаемым endpoint.
 
