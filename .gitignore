@@ -118,6 +118,7 @@ docs-site/public/llms*.txt
 storage/*
 # Project-derived Skill Intelligence reports and proposals are local-only.
 storage/skill-intelligence/
+storage/project-lifecycle/
 !storage/.gitkeep
 !storage/index/
 storage/index/*

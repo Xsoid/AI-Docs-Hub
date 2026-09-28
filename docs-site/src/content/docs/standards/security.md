@@ -45,3 +45,7 @@ Skill Intelligence применяет те же exclude, safe path и secret sca
 ## External Services
 
 Default stack не отправляет project contents во внешние APIs и не использует cloud vector DB.
+
+## Lifecycle Reports
+
+Project Lifecycle stores only local ignored metadata and digests. Review records must not contain external project source snippets, full diff, generated AGENTS content, real absolute project paths or secrets. Secret scan and path safety remain hard invariants; missing optional security tooling is not passed silently.

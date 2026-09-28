@@ -24,6 +24,7 @@ from rag.docs_quality import documentation_readiness  # noqa: E402
 from rag.health import run_healthcheck  # noqa: E402
 from rag.sources import build_source_plan  # noqa: E402
 from rag.skill_intelligence import get_stored_skill_intelligence_status  # noqa: E402
+from rag.project_lifecycle import lifecycle_status  # noqa: E402
 
 DOCS_URL = "http://localhost:4321/"
 DOCS_HEALTH_URL = "http://localhost:4321/status/"
@@ -818,6 +819,66 @@ def check_skill_intelligence() -> Component:
     )
 
 
+def check_project_lifecycle() -> Component:
+    try:
+        configs = real_project_configs()
+    except Exception as exc:  # noqa: BLE001
+        return Component("project-lifecycle", "error", f"failed to inspect project lifecycle: {exc}", required=False)
+
+    projects: list[dict[str, Any]] = []
+    warning_count = 0
+    error_count = 0
+    for config in configs:
+        try:
+            snapshot = lifecycle_status(config)
+            gate = snapshot.get("gate", {})
+            state = str(gate.get("state", "ERROR"))
+            row_status = "ok" if state in {"NO_PATCH", "PUBLISHABLE"} else "error" if state in {"ERROR", "VERIFICATION_FAILED", "CODE_REVIEW_FAILED", "SECURITY_REVIEW_FAILED"} else "warning"
+            if row_status == "warning":
+                warning_count += 1
+            if row_status == "error":
+                error_count += 1
+            projects.append(
+                {
+                    "project": config.project,
+                    "status": state,
+                    "init_status": (snapshot.get("init") or {}).get("status", "missing"),
+                    "quality_profile_status": (snapshot.get("quality_profile") or {}).get("status", "missing"),
+                    "fingerprint": gate.get("fingerprint"),
+                    "changed_files": gate.get("changed_files", []),
+                    "verification": (gate.get("verification") or {}).get("status", "missing"),
+                    "code_review": (gate.get("code_review") or {}).get("status", "missing"),
+                    "security_review": (gate.get("security_review") or {}).get("status", "missing"),
+                    "publishable": bool(gate.get("publishable", False)),
+                    "blocking_reasons": gate.get("blocking_reasons", []),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            error_count += 1
+            projects.append({"project": config.project, "status": "ERROR", "publishable": False, "blocking_reasons": [str(exc)]})
+
+    if error_count:
+        status = "error"
+    elif warning_count:
+        status = "warning"
+    else:
+        status = "ok"
+    return Component(
+        "project-lifecycle",
+        status,
+        f"{len(projects) - error_count - warning_count}/{len(projects)} project(s) publishable or clean",
+        required=False,
+        details={
+            "projects": projects,
+            "project_count": len(projects),
+            "warning_count": warning_count,
+            "error_count": error_count,
+            "semantic_review_auto_run": False,
+            "storage": "storage/project-lifecycle/<project>/",
+        },
+    )
+
+
 def check_generated_context() -> Component:
     missing: list[str] = []
     files: list[dict[str, Any]] = []
@@ -1239,6 +1300,7 @@ def main() -> int:
         check_mkdocs(),
         check_documentation_readiness(),
         check_skill_intelligence(),
+        check_project_lifecycle(),
         check_mcp(timeout=args.timeout),
         codebase_memory,
         check_watcher(stale_after=args.watcher_stale_after),

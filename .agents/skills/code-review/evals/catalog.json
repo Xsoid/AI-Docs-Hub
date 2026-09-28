@@ -1,0 +1,12 @@
+[
+  {
+    "id": "docs-only-safe",
+    "patch": "docs/usage.md changes wording without executable behavior",
+    "expected": "no code finding; security scope remains low-risk"
+  },
+  {
+    "id": "api-compatibility-regression",
+    "patch": "public response removes a field consumed by existing clients",
+    "expected": "code review reports a compatibility finding with contract evidence"
+  }
+]

@@ -737,6 +737,10 @@ const title = 'Статус AI Docs Hub';
           title: 'Skill Intelligence',
           description: 'Показывает свежесть audit, skills, workflow candidates и validation diagnostics по проектам.'
         },
+        'project-lifecycle': {
+          title: 'Project Lifecycle / Quality Gate',
+          description: 'Проверяет onboarding, deterministic verification и свежесть отдельных code/security review для текущего patch.'
+        },
         mcp: {
           title: 'Связь с Codex',
           description: 'Проверяет локальный MCP-мост и список доступных tools.'
@@ -871,6 +875,8 @@ const title = 'Статус AI Docs Hub';
           appendProjectRows(article, details.projects, docsReadinessBadge, docsReadinessMeta);
         } else if (name === 'skill-intelligence') {
           appendProjectRows(article, details.projects, skillBadge, skillMeta, skillProjectFixes);
+        } else if (name === 'project-lifecycle') {
+          appendProjectRows(article, details.projects, lifecycleBadge, lifecycleMeta, lifecycleProjectFixes);
         } else if (name === 'codebase-memory') {
           appendProjectRows(article, details.projects, codebaseMemoryBadge, codebaseMemoryMeta);
         }
@@ -1048,6 +1054,41 @@ const title = 'Статус AI Docs Hub';
         if (project.status === 'error' && !project.audit_available) return [];
         const label = project.status === 'missing' ? 'Запустить audit' : 'Обновить audit';
         return [{ action: 'skill-audit', project: project.project, label }];
+      }
+
+      function lifecycleBadge(project) {
+        if (project.publishable) return { text: 'publishable', kind: 'ok' };
+        if (project.status === 'NO_PATCH') return { text: 'нет patch', kind: 'neutral' };
+        if (String(project.status || '').includes('FAILED') || project.status === 'ERROR') {
+          return { text: project.status || 'error', kind: 'error' };
+        }
+        return { text: project.status || 'attention', kind: 'warning' };
+      }
+
+      function lifecycleMeta(project) {
+        return [
+          'init: ' + (project.init_status || 'missing'),
+          'quality profile: ' + (project.quality_profile_status || 'missing'),
+          'verification: ' + (project.verification || 'missing'),
+          'code review: ' + (project.code_review || 'missing'),
+          'security review: ' + (project.security_review || 'missing'),
+          'changed files: ' + (Array.isArray(project.changed_files) ? project.changed_files.length : 0),
+          ...(Array.isArray(project.blocking_reasons) ? project.blocking_reasons : [])
+        ];
+      }
+
+      function lifecycleProjectFixes(project) {
+        const fixes = [];
+        if (project.init_status !== 'initialized') {
+          fixes.push({ action: 'project-onboard', project: project.project, label: 'Подключить lifecycle' });
+        }
+        if (project.quality_profile_status !== 'available') {
+          fixes.push({ action: 'quality-profile', project: project.project, label: 'Обновить quality profile' });
+        }
+        if (project.status !== 'NO_PATCH' && project.verification !== 'passed') {
+          fixes.push({ action: 'verify-patch', project: project.project, label: 'Проверить patch' });
+        }
+        return fixes;
       }
 
       function componentFixes(name, component) {

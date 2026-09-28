@@ -5,6 +5,10 @@ const actions = [
   'docs-site.restart',
   'generated.refresh',
   'rag.reindex',
+  'project-onboard',
+  'quality-profile',
+  'verify-patch',
+  'skill-audit',
   'runtime.install-start',
   'runtime.start'
 ];

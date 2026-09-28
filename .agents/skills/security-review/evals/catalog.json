@@ -1,0 +1,27 @@
+[
+  {
+    "id": "docs-only-safe",
+    "patch": "docs/usage.md changes wording without executable behavior",
+    "expected": "no security finding and no full security crawl"
+  },
+  {
+    "id": "authz-bypass",
+    "patch": "authorize(user) returns true for every user",
+    "expected": "high or critical authorization finding with privilege-escalation impact"
+  },
+  {
+    "id": "path-traversal",
+    "patch": "request path is joined to a filesystem root without containment validation",
+    "expected": "high path-traversal finding with asset and boundary identified"
+  },
+  {
+    "id": "secret-logging",
+    "patch": "access token is written to an application log",
+    "expected": "high secret-leakage finding with concrete evidence"
+  },
+  {
+    "id": "dependency-tool-unavailable",
+    "patch": "dependency manifest changes but the accepted audit command is unavailable",
+    "expected": "scanner is recorded as not_available, never passed"
+  }
+]

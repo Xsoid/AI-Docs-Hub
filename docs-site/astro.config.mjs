@@ -20,6 +20,7 @@ export default defineConfig({
             { label: 'Автономная настройка', slug: 'hub/autonomous-setup' },
             { label: 'Использование', slug: 'hub/usage' },
             { label: 'Справочник команд', slug: 'hub/command-reference' },
+            { label: 'Project Lifecycle / Quality Gate', slug: 'hub/project-lifecycle' },
             { label: 'Правила агентов', slug: 'hub/agent-rules' }
           ]
         },

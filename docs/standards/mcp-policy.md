@@ -48,6 +48,12 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 
 Skill Intelligence read tools project-scoped и не переключают namespace. `get_project_profile` также возвращает компактный Skill Intelligence summary, но не заменяет полный audit. Audit сравнивает workflow-кандидаты по содержимому между разными sources и проверяет ownership skill-сегментов относительно canonical docs/`AGENTS.md`; project-derived текст в summary не копируется. Proposal/audit artifacts сохраняются локально в ignored storage. `apply_skill_proposal` принимает complete reviewed content только для точного набора proposal targets; без `confirm=true` он возвращает dry-run и ничего не записывает. Apply повторно проверяет project-root containment, allowed path surface, exclude rules, secret patterns и hash исходного файла. Hub не вызывает LLM для proposal transformation или генерации skills.
 
+## Project Lifecycle Tools
+
+MCP project lifecycle tools не запускают LLM. get_quality_profile и verify_patch выполняют только deterministic discovery/checks; prepare_patch_review возвращает diff-first metadata; record_code_review и record_security_review принимают explicit structured results только при совпадении текущего fingerprint; get_pre_publish_status читает gate state; onboard_project требует confirm=true и пишет только managed block в external project AGENTS.md. Reports хранятся в ignored storage/project-lifecycle/<project>/.
+
+Security review является отдельным record и не является alias code review. Допустимая положительная формулировка — no findings in reviewed scope; absolute security guarantee запрещена.
+
 ## Config Edits
 
 Global `~/.codex/config.toml` можно редактировать только когда задача требует Codex/MCP setup. Правки должны быть scoped и явно описаны пользователю.

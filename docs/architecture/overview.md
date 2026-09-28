@@ -120,6 +120,10 @@ Apply использует только полное reviewed content, объя�
 
 Так как сервер работает через stdio, MCP обычно запускается клиентом, который его использует. По умолчанию это не long-running HTTP service.
 
+### Project Lifecycle / Quality Gate
+
+Project Lifecycle использует existing project config, secret/path safety, Skill Intelligence и Codebase Memory, но не создает параллельные discovery или review mechanisms. Его local-only слой строит quality profile, deterministic verification, patch fingerprint и gate state. Semantic code/security review выполняется явным Codex workflow, а MCP хранит только structured result для текущего fingerprint. Reports живут в ignored storage/project-lifecycle/<project>/; source snippets и absolute external paths не сохраняются.
+
 ### Watcher-Ы
 
 `scripts/watch-project` может следить за одним настроенным проектом или за всеми валидными проектами и переиндексировать их при изменении source-документации.

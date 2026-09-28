@@ -2,6 +2,10 @@
 
 Status diagnostics должны показывать operational failures отдельно от documentation recommendations.
 
+## Project Lifecycle
+
+Optional component project-lifecycle показывает init status, quality profile availability, current fingerprint, verification, code review, security review, gate state, publishable flag и blocking reasons по каждому подключенному проекту. Status read-only и не запускает semantic review. Reports находятся в ignored storage/project-lifecycle/<project>/.
+
 ## Components
 
 `scripts/hub-status` возвращает:

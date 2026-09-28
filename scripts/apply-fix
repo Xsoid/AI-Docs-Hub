@@ -22,12 +22,15 @@ ACTION_DESCRIPTIONS = {
     "rag.reindex": "Reindex one project namespace and regenerate generated context.",
     "generated.refresh": "Regenerate project pages and generated LLM context.",
     "skill-audit": "Run a read-only Skill Intelligence audit and store its local report.",
+    "project-onboard": "Add or refresh the managed Project Lifecycle block in a connected project's AGENTS.md.",
+    "quality-profile": "Refresh one project's local deterministic quality profile.",
+    "verify-patch": "Run deterministic verification for one project's current working patch.",
     "codebase-memory.index": "Prepare the project safety ignore file and build its code graph.",
     "docs-site.restart": "Restart the persistent docs-site runtime through launchd.",
     "runtime.start": "Start the persistent AI Docs Hub launchd runtime.",
     "runtime.install-start": "Install and start the persistent AI Docs Hub launchd runtime.",
 }
-PROJECT_ACTIONS = {"rag.reindex", "generated.refresh", "skill-audit", "codebase-memory.index"}
+PROJECT_ACTIONS = {"rag.reindex", "generated.refresh", "skill-audit", "codebase-memory.index", "project-onboard", "quality-profile", "verify-patch"}
 JOB_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -194,6 +197,27 @@ def action_skill_audit(project: str | None) -> dict[str, Any]:
     }
 
 
+def action_project_lifecycle(project: str | None, command_name: str) -> dict[str, Any]:
+    config = validate_project(project)
+    assert project is not None
+    command = [sys.executable, str(ROOT / "scripts" / command_name), "--project", project, "--json"]
+    if command_name == "onboard-project":
+        command.append("--write")
+    result = command_result(command, timeout=300)
+    require_ok(result, f"failed to run {command_name} for {project}")
+    try:
+        payload = json.loads(result["stdout"])
+    except json.JSONDecodeError as exc:
+        raise FixError(f"{command_name} returned invalid JSON", details={"command_result": result}) from exc
+    return {
+        "status": "ok" if payload.get("status") not in {"error", "failed"} else "warning",
+        "message": f"{command_name} completed for {project}",
+        "project": project,
+        "namespace": config.namespace,
+        "result": payload,
+    }
+
+
 def action_codebase_memory_index(project: str | None) -> dict[str, Any]:
     config = validate_project(project)
     assert project is not None
@@ -277,6 +301,12 @@ def run_action(action: str, project: str | None) -> dict[str, Any]:
         return action_generated_refresh(project)
     if action == "skill-audit":
         return action_skill_audit(project)
+    if action == "project-onboard":
+        return action_project_lifecycle(project, "onboard-project")
+    if action == "quality-profile":
+        return action_project_lifecycle(project, "quality-profile")
+    if action == "verify-patch":
+        return action_project_lifecycle(project, "verify-patch")
     if action == "codebase-memory.index":
         return action_codebase_memory_index(project)
     if action == "docs-site.restart":

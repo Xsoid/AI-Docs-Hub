@@ -34,6 +34,15 @@ from rag.skill_intelligence import (  # noqa: E402
     run_skill_audit,
     validate_skill_architecture,
 )
+from rag.project_lifecycle import (  # noqa: E402
+    lifecycle_status,
+    onboard_project,
+    prepare_patch_review,
+    pre_publish_status,
+    quality_profile,
+    record_review,
+    verify_patch,
+)
 
 
 Json = dict[str, Any]
@@ -61,6 +70,13 @@ class McpServer:
             "create_skill_proposal": self.tool_create_skill_proposal,
             "create_skill_evolution_proposal": self.tool_create_skill_evolution_proposal,
             "apply_skill_proposal": self.tool_apply_skill_proposal,
+            "get_quality_profile": self.tool_get_quality_profile,
+            "prepare_patch_review": self.tool_prepare_patch_review,
+            "verify_patch": self.tool_verify_patch,
+            "record_code_review": self.tool_record_code_review,
+            "record_security_review": self.tool_record_security_review,
+            "get_pre_publish_status": self.tool_get_pre_publish_status,
+            "onboard_project": self.tool_onboard_project,
         }
 
     def resolve_project(self, args: Json) -> str:
@@ -261,6 +277,68 @@ class McpServer:
             files=files,
             confirm=bool(args.get("confirm", False)),
         )
+
+    def tool_get_quality_profile(self, args: Json) -> Json:
+        return quality_profile(self.resolve_project(args))
+
+    def tool_prepare_patch_review(self, args: Json) -> Json:
+        return prepare_patch_review(
+            self.resolve_project(args),
+            kind=str(args.get("kind", "code")),
+            scope=str(args.get("scope", "working")),
+            base=str(args["base"]) if args.get("base") else None,
+        )
+
+    def tool_verify_patch(self, args: Json) -> Json:
+        return verify_patch(
+            self.resolve_project(args),
+            scope=str(args.get("scope", "working")),
+            base=str(args["base"]) if args.get("base") else None,
+            timeout=float(args.get("timeout", 300)),
+        )
+
+    def _record_review(self, args: Json, kind: str) -> Json:
+        findings = args.get("findings", [])
+        if not isinstance(findings, list):
+            raise ValueError("findings must be an array")
+        fingerprint = str(args.get("fingerprint", "")).strip()
+        if not fingerprint:
+            raise ValueError("fingerprint is required")
+        return record_review(
+            self.resolve_project(args),
+            kind=kind,
+            scope=str(args.get("scope", "working")),
+            base=str(args["base"]) if args.get("base") else None,
+            fingerprint=fingerprint,
+            status=str(args.get("status", "incomplete")),
+            findings=[item for item in findings if isinstance(item, dict)],
+            reviewer=str(args.get("reviewer", "codex")),
+            summary=str(args.get("summary", "")),
+        )
+
+    def tool_record_code_review(self, args: Json) -> Json:
+        return self._record_review(args, "code")
+
+    def tool_record_security_review(self, args: Json) -> Json:
+        return self._record_review(args, "security")
+
+    def tool_get_pre_publish_status(self, args: Json) -> Json:
+        return lifecycle_status(
+            self.resolve_project(args),
+            scope=str(args.get("scope", "working")),
+            base=str(args["base"]) if args.get("base") else None,
+        )
+
+    def tool_onboard_project(self, args: Json) -> Json:
+        project = self.resolve_project(args)
+        if not bool(args.get("confirm", False)):
+            return {
+                "requires_confirmation": True,
+                "risk": "Onboarding may write a compact managed block to the connected project's AGENTS.md and stores metadata only in ignored Hub storage.",
+                "safe_default": "No connected project file was changed because confirm=true was not provided.",
+                "mcp_call": {"tool": "onboard_project", "arguments": {"project": project, "confirm": True}},
+            }
+        return onboard_project(project, write=True)
 
     def tool_specs(self) -> list[Json]:
         project_property = {
@@ -501,6 +579,83 @@ class McpServer:
                         "confirm": {"type": "boolean", "default": False},
                     },
                     "required": ["proposal_id"] if self.active_project else ["project", "proposal_id"],
+                },
+            },
+            {
+                "name": "get_quality_profile",
+                "description": "Discover project verification commands and security metadata without running semantic review.",
+                "inputSchema": {"type": "object", "properties": {"project": project_property}, "required": [] if self.active_project else ["project"]},
+            },
+            {
+                "name": "prepare_patch_review",
+                "description": "Prepare compact diff-first metadata for an explicit code or security review.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "kind": {"type": "string", "enum": ["code", "security"]},
+                        "scope": {"type": "string", "enum": ["working", "staged", "range", "branch"], "default": "working"},
+                        "base": {"type": "string"},
+                    },
+                    "required": (["kind"] if self.active_project else ["project", "kind"]),
+                },
+            },
+            {
+                "name": "verify_patch",
+                "description": "Run deterministic project checks, git diff check and secret scan; stores only local metadata and digests.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "scope": {"type": "string", "enum": ["working", "staged", "range", "branch"], "default": "working"},
+                        "base": {"type": "string"},
+                        "timeout": {"type": "number", "default": 300},
+                    },
+                    "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "record_code_review",
+                "description": "Record an explicit semantic code review tied to the current patch fingerprint.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property, "scope": {"type": "string"}, "base": {"type": "string"},
+                        "fingerprint": {"type": "string"}, "status": {"type": "string", "enum": ["passed", "failed", "incomplete"]},
+                        "findings": {"type": "array", "items": {"type": "object"}}, "summary": {"type": "string"}, "reviewer": {"type": "string"},
+                    },
+                    "required": (["fingerprint", "status"] if self.active_project else ["project", "fingerprint", "status"]),
+                },
+            },
+            {
+                "name": "record_security_review",
+                "description": "Record a separate adaptive security review tied to the current patch fingerprint; never asserts absolute security.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property, "scope": {"type": "string"}, "base": {"type": "string"},
+                        "fingerprint": {"type": "string"}, "status": {"type": "string", "enum": ["passed", "failed", "incomplete"]},
+                        "findings": {"type": "array", "items": {"type": "object"}}, "summary": {"type": "string"}, "reviewer": {"type": "string"},
+                    },
+                    "required": (["fingerprint", "status"] if self.active_project else ["project", "fingerprint", "status"]),
+                },
+            },
+            {
+                "name": "get_pre_publish_status",
+                "description": "Return current lifecycle state and whether the exact patch is publishable.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"project": project_property, "scope": {"type": "string"}, "base": {"type": "string"}},
+                    "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "onboard_project",
+                "description": "Safely add or refresh only the Hub-managed lifecycle block in project AGENTS.md; confirm=true is mandatory.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"project": project_property, "confirm": {"type": "boolean", "default": False}},
+                    "required": [] if self.active_project else ["project"],
                 },
             },
         ]

@@ -1,7 +1,9 @@
 PYTHON ?= python3.11
 PROJECT ?= example-project
+SCOPE ?= working
+KIND ?= code
 
-.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit logs clean-cache validate-configs
+.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -116,6 +118,24 @@ scaffold-docs-write:
 
 skill-audit:
 	$(PYTHON) scripts/skill-audit --project "$(PROJECT)"
+
+project-onboard:
+	$(PYTHON) scripts/onboard-project --project "$(PROJECT)" --write
+
+quality-profile:
+	$(PYTHON) scripts/quality-profile --project "$(PROJECT)"
+
+verify-patch:
+	$(PYTHON) scripts/verify-patch --project "$(PROJECT)" --scope "$(SCOPE)"
+
+prepare-review:
+	$(PYTHON) scripts/project-lifecycle prepare-review --project "$(PROJECT)" --kind "$(KIND)" --scope "$(SCOPE)"
+
+pre-publish:
+	$(PYTHON) scripts/pre-publish --project "$(PROJECT)" --scope "$(SCOPE)"
+
+review-status:
+	$(PYTHON) scripts/review-status --project "$(PROJECT)" --scope "$(SCOPE)"
 
 logs:
 	$(PYTHON) scripts/read-logs --project "$(PROJECT)"

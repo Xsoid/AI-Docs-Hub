@@ -121,6 +121,19 @@ Generated artifacts не редактируются вручную.
 
 `index_project` требует `confirm=true`, чтобы начать indexing через MCP. `scaffold_project_docs` требует `confirm=true`, чтобы писать files в подключенный проект.
 
+## Project Lifecycle / Quality Gate
+
+| Команда | Назначение |
+| --- | --- |
+| make project-onboard PROJECT=name | Явно добавить или обновить только Hub-managed lifecycle block в project AGENTS.md. |
+| make quality-profile PROJECT=name | Построить machine-readable profile существующих project checks. |
+| make verify-patch PROJECT=name SCOPE=working | Выполнить deterministic checks, git diff check и secret scan. |
+| make prepare-review PROJECT=name KIND=code | Подготовить compact diff-first metadata для explicit code/security review. |
+| make pre-publish PROJECT=name SCOPE=staged | Проверить state machine и publishable status текущего fingerprint. |
+| make review-status PROJECT=name | Прочитать lifecycle status без запуска semantic review. |
+
+Semantic review records пишутся через MCP tools record_code_review и record_security_review. Старый fingerprint не переносится после изменения patch. Reports external projects остаются в ignored storage/project-lifecycle.
+
 ## Codebase Memory
 
 | Команда | Назначение |

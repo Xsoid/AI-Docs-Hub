@@ -89,6 +89,10 @@ RAG backend по умолчанию - локальное JSON/BM25-хранил�
 
 Apply использует только полное reviewed content, объявленные proposal target paths и `confirm=true`. Разрешены `.agents/skills/**`, `docs/**` и root `AGENTS.md`; target повторно проверяется на project-root containment, exclude rules, secret patterns и ожидаемый content hash. Запись в сам checkout Hub запрещена, даже если он указан как project root. Внешний проект не становится источником tracked Hub-файлов.
 
+## Project Lifecycle / Quality Gate
+
+Project Lifecycle использует existing project config, secret/path safety, Skill Intelligence и Codebase Memory, но не создает параллельные discovery или review mechanisms. Его local-only слой строит quality profile, deterministic verification, patch fingerprint и gate state. Semantic code/security review выполняется явным Codex workflow, а MCP хранит только structured result для текущего fingerprint. Reports живут в ignored storage/project-lifecycle/<project>/; source snippets и absolute external paths не сохраняются.
+
 ## MCP Bridge
 
 `mcp/server.py` - stdio MCP server. Он предоставляет tools для списка проектов, профилей, поиска, чтения разрешенных документов, индексации, lint, scaffold, Skill Intelligence, healthcheck и operation logs.
