@@ -5,12 +5,14 @@ import argparse
 import json
 import subprocess
 import sys
+import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 APPLY_FIX = ROOT / "scripts" / "apply-fix"
 FIX_DIR = ROOT / "storage" / "runtime" / "fixes"
 ALLOWED_ACTIONS = {
@@ -25,6 +27,8 @@ ALLOWED_ACTIONS = {
     "runtime.start",
     "runtime.install-start",
 }
+ALLOWED_ORIGINS = {"http://localhost:4321", "http://127.0.0.1:4321"}
+PROJECT_CONFIG_LOCK = threading.Lock()
 
 
 def run_apply_fix(action: str, project: str | None) -> tuple[int, dict[str, object]]:
@@ -78,8 +82,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("content-type", "application/json; charset=utf-8")
         self.send_header("cache-control", "no-store")
-        self.send_header("access-control-allow-origin", "*")
-        self.send_header("access-control-allow-methods", "GET, OPTIONS")
+        origin = self.headers.get("origin")
+        if origin in ALLOWED_ORIGINS:
+            self.send_header("access-control-allow-origin", origin)
+            self.send_header("vary", "origin")
+        self.send_header("access-control-allow-methods", "GET, POST, OPTIONS")
         self.send_header("access-control-allow-headers", "content-type")
         self.send_header("access-control-allow-private-network", "true")
         self.send_header("content-length", str(len(data)))
@@ -87,10 +94,16 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_OPTIONS(self) -> None:  # noqa: N802
+        if self.headers.get("origin") not in ALLOWED_ORIGINS:
+            self.send_json(HTTPStatus.FORBIDDEN, {"status": "error", "error": "untrusted origin"})
+            return
         self.send_json(HTTPStatus.NO_CONTENT, {})
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path != "/health" and self.headers.get("origin") not in {None, *ALLOWED_ORIGINS}:
+            self.send_json(HTTPStatus.FORBIDDEN, {"status": "error", "error": "untrusted origin"})
+            return
         query = {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
         if parsed.path == "/health":
             self.send_json(HTTPStatus.OK, {"status": "ok"})
@@ -104,6 +117,60 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(status, payload)
             return
         self.send_json(HTTPStatus.NOT_FOUND, {"status": "error", "error": "not found"})
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        if self.headers.get("origin") not in {None, *ALLOWED_ORIGINS}:
+            self.send_json(HTTPStatus.FORBIDDEN, {"status": "error", "error": "untrusted origin"})
+            return
+        if parsed.path != "/project-config":
+            self.send_json(HTTPStatus.NOT_FOUND, {"status": "error", "error": "not found"})
+            return
+        try:
+            length = int(self.headers.get("content-length", "0"))
+            if length <= 0 or length > 131072:
+                raise ValueError("invalid request size")
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("JSON object expected")
+            mode = str(payload.pop("mode", ""))
+            from rag.project_config_editor import (
+                ProjectArtifactRefreshError,
+                refresh_project_artifacts,
+                save_project_config,
+            )
+
+            config_saved = False
+            with PROJECT_CONFIG_LOCK:
+                config = save_project_config(payload, mode=mode)
+                config_saved = True
+                refresh_project_artifacts()
+            self.send_json(
+                HTTPStatus.OK,
+                {
+                    "status": "ok",
+                    "mode": mode,
+                    "project": config.project,
+                    "config_path": str(config.config_path.relative_to(ROOT)),
+                    "message": f"project {config.project} {mode}d",
+                    "sync": {
+                        "status": "ok",
+                        "project_pages": "refreshed",
+                        "llms": "refreshed",
+                    },
+                },
+            )
+        except ProjectArtifactRefreshError:
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {
+                    "status": "error",
+                    "config_saved": locals().get("config_saved", False),
+                    "error": "configuration was saved, but generated documentation refresh failed",
+                },
+            )
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"status": "error", "error": str(exc)})
 
 
 def main() -> int:

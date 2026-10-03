@@ -130,6 +130,10 @@ http://localhost:4321/status/
 
 Dashboard объединяет optional Skill Intelligence diagnostics: сохраненный audit report, freshness относительно source-файлов, counts skills/candidates и validation warnings/errors. Сам status endpoint audit не запускает. Работающий watcher после debounced изменения project-docs автоматически обновляет read-only report; кнопка `skill-audit` явно обновляет его через локальный fix server, если watcher не запущен.
 
+Интерфейс отделяет global runtime-системы от project-scoped контуров. Runtime, docs-site, repository, MCP и watcher показываются самостоятельно; config/source discovery, generated context, RAG, MkDocs, documentation readiness, Skill Intelligence, Project Lifecycle и Codebase Memory собраны внутри карточки конкретного проекта.
+
+Карточка проекта редактирует allowlisted поля project config, а нижняя форма создаёт новый config через localhost-only `POST /project-config` в `scripts/fix-server`. Browser-origin ограничен `localhost:4321`/`127.0.0.1:4321`; запись атомарна, проверяет project id и namespace, повторно загружает YAML и не может выбрать произвольный файл вне `configs/projects/`. После записи endpoint синхронно пересобирает generated project pages и `llms*.txt`; успешный ответ означает, что документация уже синхронизирована. При ошибке пересборки ответ отдельно обозначает сохранённый config и неактуальные derived-артефакты.
+
 Важно: штатный docs-site слушает HTTP, а не HTTPS. URL `https://localhost:4321/` не является ожидаемым endpoint.
 
 ## Fix Actions

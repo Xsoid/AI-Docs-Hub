@@ -61,7 +61,8 @@ MkDocs adapter не запускает `mkdocs build`, `plugins`, `hooks` или
 
 - `make docs-dev` регенерирует страницы проектов и запускает Astro в foreground-режиме;
 - локальный URL по умолчанию: `http://localhost:4321/`;
-- `/status/` показывает runtime-состояние хаба и project-scoped diagnostics там, где это имеет смысл: project config/source discovery, generated project pages, RAG indexes, MkDocs adapter, documentation readiness, Skill Intelligence и scaffold availability;
+- `/status/` отделяет global runtime-системы от project-scoped контуров: runtime, docs-site, repository, MCP и watcher остаются самостоятельными карточками, а config/source discovery, generated context, RAG, MkDocs, documentation readiness, Skill Intelligence, Project Lifecycle и Codebase Memory собираются внутри карточки соответствующего проекта;
+- форма проекта редактирует allowlisted поля project config, а нижняя форма создаёт новый config через локальный `scripts/fix-server`; запись атомарна, проверяет идентификаторы и повторно загружает YAML перед публикацией;
 - `/api/apply-fix.json` запускает только allowlisted fix actions через `scripts/apply-fix`;
 - процесс docs-site пока не супервизируется самим хабом.
 
@@ -141,6 +142,8 @@ Persistent runtime отделен от глобального Codex config; MCP-
 ### Fix Actions
 
 `scripts/fix-server` обслуживает локальные dashboard кнопки на `127.0.0.1:4322` и вызывает `scripts/apply-fix`.
+
+Этот же localhost-only server принимает `POST /project-config` для явного создания или обновления project config из dashboard. Endpoint разрешает browser-origin только от `localhost:4321`/`127.0.0.1:4321` и не принимает произвольный путь назначения: файл выводится только из проверенного project id и остаётся внутри `configs/projects/`. После успешной атомарной записи он синхронно пересобирает generated project pages и `llms*.txt`; UI сообщает об успехе только после этой пересборки. Если она не удалась, API явно возвращает, что config уже сохранён, а derived-документация осталась неактуальной.
 
 `scripts/apply-fix` - allowlisted executor для operational fixes, которые запускаются из dashboard или CLI. Он не принимает произвольные shell-команды.
 

@@ -414,11 +414,17 @@ def check_project_configs() -> Component:
         projects.append(
             {
                 "project": config.project,
+                "title": config.title,
                 "namespace": config.namespace,
                 "status": state,
                 "root_configured": bool(config.root_source),
+                "root_source": config.root_source,
+                "root": str(config.root),
                 "root_exists": config.root.exists() and config.root.is_dir(),
                 "docs_backend": config.docs_backend,
+                "mkdocs_config": config.mkdocs_config,
+                "include": config.include,
+                "exclude": config.exclude,
                 "sources_count": len(config.sources),
                 "include_count": len(config.include),
                 "effective_include_count": len(source_plan.include),

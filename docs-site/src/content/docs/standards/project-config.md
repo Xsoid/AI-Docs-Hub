@@ -57,6 +57,10 @@ Validation отличает:
 - warnings: config работает, но требует внимания;
 - recommendations: documentation readiness gaps, не operational failure.
 
+## Dashboard Editor
+
+`/status/` может явно создать или обновить project config через localhost-only `POST http://127.0.0.1:4322/project-config`. Редактор принимает только allowlisted поля, не меняет project id существующего config, проверяет slug/namespace, добавляет базовые secret-exclude patterns при создании и атомарно публикует YAML только внутри `configs/projects/`. В этом dashboard-потоке YAML — source of truth: сразу после записи endpoint пересобирает generated project pages и `llms*.txt`; только после этого форма сообщает об успехе. При сбое генерации API сообщает о сохранённой конфигурации и не выдаёт её за синхронизированную документацию.
+
 ## Local-Only Project Bindings
 
 Подключение конкретного проекта к локальному Hub является local-only операцией. Создание или обновление `configs/projects/*.yaml`, индекса проекта, generated project page, `llms*.txt`, Codebase Memory cache, project-scoped MCP entry или managed routing rules не должно создавать или изменять tracked-файлы в `docs/`, `docs-site/` или `docs/changes/`.

@@ -2,7 +2,7 @@
 
 ## Назначение
 
-GUI dashboard - простая локальная страница состояния AI Docs Hub.
+GUI dashboard - локальная панель управления AI Docs Hub и подключенными проектами.
 
 Адрес:
 
@@ -22,6 +22,8 @@ http://localhost:4321/status/
 
 Страница живет в `docs-site/src/pages/status.astro`.
 
+Карточки систем и проектов создаются клиентским JavaScript после получения status JSON. Поэтому stylesheet standalone-страницы объявлен global: Astro-scoped selectors не применяются к динамически созданным DOM nodes.
+
 Данные берутся из API endpoint:
 
 ```text
@@ -36,7 +38,7 @@ python3.11 scripts/hub-status --json --docs-site-self-ok
 
 и возвращает JSON в браузер.
 
-Страница обновляет состояние каждые 5 секунд и не запускает параллельную проверку, если предыдущий запрос еще идет.
+Страница обновляет состояние каждые 10 секунд и не запускает параллельную проверку, если предыдущий запрос еще идет. Пока открыта форма редактирования проекта, автоматическая перерисовка приостанавливается, чтобы не потерять введённые данные.
 
 Dashboard может запускать только заранее разрешенные fix-действия через кнопку пользователя. Endpoint не принимает произвольные shell-команды и не редактирует source-документацию подключенных проектов.
 
@@ -47,7 +49,10 @@ Fix API:
 ```text
 http://127.0.0.1:4322/apply-fix
 http://127.0.0.1:4322/job
+http://127.0.0.1:4322/project-config
 ```
+
+`POST /project-config` не ограничивается записью YAML: после успешного create/update он синхронно запускает генерацию project pages и `llms*.txt`. Поэтому изменение названия проекта в карточке отражается в generated-документации до успешного ответа UI. Если генерация не проходит, ответ `500` содержит `config_saved: true`: конфигурация сохранена, но документация ещё требует повторной синхронизации.
 
 Исполнители:
 
@@ -73,15 +78,15 @@ storage/logs/apply-fix-*.log
 - `Хаб лежит`;
 - `Хаб требует внимания`.
 
-Ниже показаны понятные компоненты:
+Самостоятельными блоками показаны только системы хаба, не принадлежащие отдельному проекту:
 
 - `Пульт управления` - foreground или launchd runtime;
 - `Веб-страница` - docs-site на `localhost:4321`;
 - `Настройки` - repository healthcheck;
-- `Поиск по документам` - Lite RAG;
 - `Связь с Codex` - MCP bridge;
-- `Граф исходного кода` - Codebase Memory;
 - `Автообновление` - watcher heartbeat.
+
+Ниже создаётся один полноценный блок на проект. Внутри него находятся config/root/namespace, monitoring и project-scoped подсистемы: Docs RAG, Generated context, source discovery, documentation readiness, Skill Intelligence, Project Lifecycle и Code graph.
 
 Для `Поиск по документам` dashboard всегда показывает `Актуализировать` у существующего project index, а для `missing` или `error` — `Собрать индекс`. Кнопка запускает `rag.reindex` для одного project namespace через локальный fix server и не обходит secret scan.
 
@@ -94,6 +99,8 @@ storage/logs/apply-fix-*.log
 Code graph считается подключенным только при `graph indexed + project-scoped MCP configured + managed AGENTS rules installed`. Если существует только graph index, dashboard показывает `требует внимания` и кнопку `Завершить подключение`. После успешного onboarding панель операции напоминает перезапустить Codex.
 
 Для `Веб-страница` и runtime dashboard может показать кнопку restart/start persistent runtime через `launchd`, когда проблема видна из status JSON и dashboard сам остается доступен.
+
+Раскрываемая форма проекта редактирует `title`, `root`, `namespace`, `docs_backend`, `mkdocs_config`, `include` и `exclude`. Project id после создания неизменяем. Форма внизу создаёт новый project config; базовые secret-exclude patterns добавляются автоматически. `scripts/fix-server` проверяет payload и атомарно публикует YAML только внутри `configs/projects/`.
 
 ## Ограничения
 
@@ -126,6 +133,7 @@ make hub-menu-start
 ```sh
 curl -sS http://localhost:4321/api/hub-status.json | python3.11 -m json.tool
 curl -sS 'http://127.0.0.1:4322/apply-fix?action=rag.reindex&project=project-name' | python3.11 -m json.tool
+curl -sS -X POST http://127.0.0.1:4322/project-config -H 'content-type: application/json' --data @project-config.json | python3.11 -m json.tool
 ```
 
 Проверить страницу:

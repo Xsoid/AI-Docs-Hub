@@ -3,7 +3,7 @@ title: GUI Dashboard
 description: Локальная страница состояния AI Docs Hub.
 ---
 
-GUI dashboard - локальная страница состояния с ограниченными fix-действиями.
+GUI dashboard - локальная панель управления хабом и подключенными проектами с ограниченными fix-действиями.
 
 Адрес:
 
@@ -19,6 +19,8 @@ http://localhost:4321/status/
 docs-site/src/pages/status.astro
 ```
 
+Карточки систем и проектов создаются клиентским JavaScript после получения status JSON. Поэтому stylesheet standalone-страницы объявлен global: Astro-scoped selectors не применяются к динамически созданным DOM nodes.
+
 Данные берутся из:
 
 ```text
@@ -31,7 +33,7 @@ Endpoint запускает:
 python3.11 scripts/hub-status --json --docs-site-self-ok
 ```
 
-Страница обновляет состояние каждые 5 секунд. Кнопка `Обновить` делает тот же запрос без cache и не запускает параллельную проверку, если предыдущий запрос еще идет.
+Страница обновляет состояние каждые 10 секунд. Кнопка `Обновить` делает тот же запрос без cache и не запускает параллельную проверку, если предыдущий запрос еще идет. При открытом редакторе проекта автоматическая перерисовка приостанавливается.
 
 Dashboard может запускать только заранее разрешенные fix-действия через кнопку пользователя. Endpoint не принимает произвольные shell-команды и не редактирует source-документацию подключенных проектов.
 
@@ -42,6 +44,7 @@ Fix API:
 ```text
 http://127.0.0.1:4322/apply-fix
 http://127.0.0.1:4322/job
+http://127.0.0.1:4322/project-config
 ```
 
 Исполнители:
@@ -58,19 +61,11 @@ storage/runtime/fixes/
 storage/logs/apply-fix-*.log
 ```
 
-## Компоненты На Странице
+## Информационная Архитектура
 
-- `Пульт управления` - foreground или `launchd` runtime.
-- `Веб-страница` - docs-site на `localhost:4321`.
-- `Настройки` - repository healthcheck.
-- `Проекты` - project configs и source discovery.
-- `Generated context` - `llms*.txt`, report и generated project pages.
-- `Поиск по документам` - Lite RAG.
-- `MkDocs` - adapter diagnostics.
-- `Documentation readiness` - coverage и recommendations.
-- `Связь с Codex` - MCP bridge.
-- `Граф исходного кода` - Codebase Memory.
-- `Автообновление` - watcher heartbeat.
+Runtime, docs-site, repository health, MCP bridge и watcher являются самостоятельными global-блоками. Все project-scoped данные собраны в карточке соответствующего проекта: config/root/namespace, Docs RAG, Generated context, source discovery, documentation readiness, Skill Intelligence, Project Lifecycle и Code graph.
+
+В каждой карточке доступны monitoring и allowlisted действия подключения. Раскрываемая форма редактирует `title`, `root`, `namespace`, `docs_backend`, `mkdocs_config`, `include` и `exclude`; project id остаётся неизменяемым. Нижняя форма создаёт новый config с обязательными secret-exclude patterns через localhost-only `POST /project-config`. Запись атомарна и ограничена `configs/projects/`; после неё endpoint синхронно пересобирает project pages и `llms*.txt`. Поэтому успешный ответ формы означает, что новое имя и другие config-поля уже отражены в generated-документации; при ошибке ответ отдельно сообщает, если YAML был сохранён, а derived-артефакты ещё нет.
 
 Для `Поиск по документам` dashboard всегда показывает `Актуализировать` у существующего project index, а для `missing` или `error` — `Собрать индекс`. Кнопка запускает `rag.reindex` для одного project namespace через локальный fix server и не обходит secret scan.
 
@@ -104,5 +99,6 @@ make hub-start
 ```sh
 curl -sS http://localhost:4321/api/hub-status.json | python3.11 -m json.tool
 curl -sS 'http://127.0.0.1:4322/apply-fix?action=rag.reindex&project=project-name' | python3.11 -m json.tool
+curl -sS -X POST http://127.0.0.1:4322/project-config -H 'content-type: application/json' --data @project-config.json | python3.11 -m json.tool
 curl -I http://localhost:4321/status/
 ```
