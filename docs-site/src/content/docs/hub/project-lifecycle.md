@@ -26,6 +26,8 @@ Onboarding идемпотентно сохраняет custom AGENTS content, д
 
 Fingerprint учитывает repository identity hash, scope, base, HEAD, changed files, staged/unstaged diff и relevant untracked bytes. Поддерживаются working, staged, range и branch. Любое изменение patch делает старые results stale.
 
+Для project context доступны metadata-only snapshots: MCP tools `capture_project_context` и `check_project_context`. Они сохраняют только deterministic digests, статусы и безопасные metadata в ignored `storage/context-snapshots/<project>/`; source contents и raw diff не сохраняются. Проверка возвращает `fresh`, `stale`, `degraded` или `missing` с наборами changed/unchanged/unknown components. Изменение только `indexed_at` не делает docs index stale, но изменение source/content hash делает. Codebase Memory при неизвестном или недоступном статусе остается uncertainty и не считается подтвержденной свежестью.
+
 Code review и security review — независимые MCP records, привязанные к fingerprint. Security review adaptive: docs-only patch получает low-risk scope, dependency/auth/CI/deploy изменения — повышенный scope. Результат security review формулируется как no findings in reviewed scope, не как абсолютная безопасность.
 
 Для range/branch scope Hub принимает только безопасный Git revision ref и отклоняет option-like или содержащие пробелы значения base.

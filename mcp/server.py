@@ -47,6 +47,10 @@ from rag.project_context import (  # noqa: E402
     build_project_context,
     read_project_instruction,
 )
+from rag.context_freshness import (  # noqa: E402
+    capture_project_context,
+    check_project_context,
+)
 
 
 Json = dict[str, Any]
@@ -60,6 +64,8 @@ class McpServer:
             "get_project_profile": self.tool_get_project_profile,
             "get_project_context": self.tool_get_project_context,
             "read_project_instruction": self.tool_read_project_instruction,
+            "capture_project_context": self.tool_capture_project_context,
+            "check_project_context": self.tool_check_project_context,
             "search_docs": self.tool_search_docs,
             "read_doc": self.tool_read_doc,
             "search_decisions": self.tool_search_decisions,
@@ -112,6 +118,15 @@ class McpServer:
         if not source_path:
             raise ValueError("source_path is required")
         return read_project_instruction(self.resolve_project(args), source_path)
+
+    def tool_capture_project_context(self, args: Json) -> Json:
+        return capture_project_context(self.resolve_project(args))
+
+    def tool_check_project_context(self, args: Json) -> Json:
+        snapshot_id = str(args.get("snapshot_id", "")).strip()
+        if not snapshot_id:
+            raise ValueError("snapshot_id is required")
+        return check_project_context(self.resolve_project(args), snapshot_id)
 
     def tool_search_docs(self, args: Json) -> Json:
         project = self.resolve_project(args)
@@ -394,6 +409,27 @@ class McpServer:
                         "source_path": {"type": "string"},
                     },
                     "required": (["source_path"] if self.active_project else ["project", "source_path"]),
+                },
+            },
+            {
+                "name": "capture_project_context",
+                "description": "Capture a metadata-only local snapshot of the current project context identity.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"project": project_property},
+                    "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "check_project_context",
+                "description": "Compare a stored project context snapshot with current metadata and explain fresh, stale, degraded, or missing state by component.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "snapshot_id": {"type": "string"},
+                    },
+                    "required": (["snapshot_id"] if self.active_project else ["project", "snapshot_id"]),
                 },
             },
             {

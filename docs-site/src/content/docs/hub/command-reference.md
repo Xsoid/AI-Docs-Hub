@@ -103,10 +103,16 @@ Generated artifacts не редактируются вручную.
 
 ## MCP Tools
 
+Для проверки состояния контекста доступны project-scoped MCP tools `capture_project_context` и `check_project_context`. Они используют metadata-only snapshots в ignored `storage/context-snapshots/<project>/`; source contents и raw diff не сохраняются.
+
 `mcp/server.py` exposes:
 
 - `list_projects`;
 - `get_project_profile`;
+- `get_project_context`;
+- `read_project_instruction`;
+- `capture_project_context`;
+- `check_project_context`;
 - `search_docs`;
 - `read_doc`;
 - `search_decisions`;

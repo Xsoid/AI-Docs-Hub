@@ -58,6 +58,8 @@ def main() -> int:
             "read_doc",
             "get_project_context",
             "read_project_instruction",
+            "capture_project_context",
+            "check_project_context",
             "healthcheck",
             "analyze_skill_candidates",
             "get_skill_inventory",

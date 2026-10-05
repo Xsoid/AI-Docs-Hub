@@ -176,10 +176,13 @@ def _has_git_patch(config: ProjectConfig) -> bool:
 
 
 def build_project_context(config: ProjectConfig) -> dict[str, Any]:
+    from .context_freshness import current_context_identity
+
     instructions = discover_project_instructions(config)
     documentation = _documentation_status(config)
     codebase = _codebase_status()
     skills, skills_truncated = _skill_catalog(config)
+    identity = current_context_identity(config)
     if config.root.exists() and config.root.is_dir():
         quality = quality_profile(config, persist=False)
         quality_status = {
@@ -201,6 +204,7 @@ def build_project_context(config: ProjectConfig) -> dict[str, Any]:
         "schema_version": 1,
         "project": config.project,
         "namespace": config.namespace,
+        "context_fingerprint": identity["fingerprint"],
         "profile": {"title": config.title, "docs_backend": config.docs_backend},
         "documentation": documentation,
         "instructions": instructions["items"],

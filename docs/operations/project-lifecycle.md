@@ -43,6 +43,19 @@ Verification всегда выполняет git diff --check и secret scan. О
 Любой relevant byte change создает новый fingerprint. Старый verification или review не переносится на новый diff.
 Для range/branch scope Hub принимает только безопасный Git revision ref и отклоняет option-like или содержащие пробелы значения base.
 
+## Context freshness
+
+Для проверки актуальности собранного контекста используются metadata-only snapshots:
+
+    python3.11 - <<'PY'
+    from rag.context_freshness import capture_project_context
+    print(capture_project_context("name")["snapshot_id"])
+    PY
+
+Через MCP тот же workflow выполняется tools `capture_project_context` и `check_project_context`. Snapshot содержит только deterministic component digests, статусы и безопасные metadata в ignored `storage/context-snapshots/<project>/`; source contents, raw diff, queries и credentials не сохраняются. `check_project_context` возвращает `fresh`, `stale`, `degraded` или `missing`, а также `changed_components`, `unchanged_components` и `unknown_components`. Изменение только `indexed_at` не делает docs index stale; изменение source/content hash делает.
+
+В identity входят Git HEAD/branch и working patch fingerprint, normalized config, bounded instruction metadata, skills inventory hashes и docs-index identity. Codebase Memory проверяется только по стабильному статусу: `unknown` или `unavailable` сохраняется как uncertainty и не считается подтверждением свежести.
+
 ## Два независимых review
 
 Подготовка compact diff-first контекста:

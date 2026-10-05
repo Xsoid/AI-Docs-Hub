@@ -419,6 +419,8 @@ MCP tools:
 - `get_project_profile`
 - `get_project_context`
 - `read_project_instruction`
+- `capture_project_context`
+- `check_project_context`
 - `search_docs`
 - `read_doc`
 - `search_decisions`

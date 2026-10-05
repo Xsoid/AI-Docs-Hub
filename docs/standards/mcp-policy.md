@@ -25,6 +25,8 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 - `get_project_profile`;
 - `get_project_context`;
 - `read_project_instruction`;
+- `capture_project_context`;
+- `check_project_context`;
 - `search_docs`;
 - `read_doc`;
 - `search_decisions`;
@@ -42,9 +44,11 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 - `create_skill_evolution_proposal`;
 - `apply_skill_proposal`.
 
-`get_project_context` возвращает компактный read-only manifest одного namespace: profile, docs index/readiness status, bounded metadata root/nested `AGENTS.md` и `CLAUDE.md`, каталог skills без содержимого, quality/capability status и deterministic `recommended_next_tools`. Manifest не является dump документации и не preload-ит source files.
+`get_project_context` возвращает компактный read-only manifest одного namespace: profile, docs index/readiness status, bounded metadata root/nested `AGENTS.md` и `CLAUDE.md`, каталог skills без содержимого, quality/capability status, `context_fingerprint` и deterministic `recommended_next_tools`. Manifest не является dump документации и не preload-ит source files.
 
 `read_project_instruction` принимает только project-relative path, ранее найденный manifest discovery. Он не превращается в общий filesystem reader: применяются `safe_resolve`, configured/default excludes, project-root containment, secret scan и лимит `250_000` bytes; содержимое выдаётся только on-demand с `content_hash` и `truncated`.
+
+`capture_project_context` и `check_project_context` работают project-scoped и read-only для connected project files. Snapshot хранится в ignored `storage/context-snapshots/<project>/<snapshot-id>.json` и содержит только deterministic digests, статусы и безопасные metadata: source contents, raw diff, queries и credentials туда не записываются. Freshness states: `fresh`, `stale`, `degraded`, `missing`; неизвестный или недоступный optional Codebase Memory попадает в `unknown_components` и не считается подтвержденным fresh.
 
 ## Confirmation Rules
 

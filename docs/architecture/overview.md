@@ -117,9 +117,9 @@ Apply использует только полное reviewed content, объя�
 
 ### MCP Bridge
 
-`mcp/server.py` - stdio MCP server. Он предоставляет scoped-инструменты для списка проектов, компактного Project Context Manifest, on-demand чтения project instructions, чтения документации, поиска по индексам, индексации проектов, lint-проверки, Skill Intelligence и healthcheck.
+`mcp/server.py` - stdio MCP server. Он предоставляет scoped-инструменты для списка проектов, компактного Project Context Manifest, on-demand чтения project instructions, metadata-only snapshots и freshness checks, чтения документации, поиска по индексам, индексации проектов, lint-проверки, Skill Intelligence и healthcheck.
 
-`get_project_context` объединяет существующие project config, docs/index status, Skill Intelligence и quality metadata без preload содержимого. Instruction discovery ограничен root/nested `AGENTS.md` и `CLAUDE.md`, а `read_project_instruction` допускает только ранее обнаруженный project-relative path с обычными exclude, containment и secret-scan правилами.
+`get_project_context` объединяет существующие project config, docs/index status, Skill Intelligence, quality metadata и deterministic `context_fingerprint` без preload содержимого. `capture_project_context` сохраняет в ignored `storage/context-snapshots/<project>/` только component metadata и digests; `check_project_context` сравнивает snapshot с текущим состоянием и возвращает `fresh`, `stale`, `degraded` или `missing`. В fingerprint входят Git HEAD/branch и working patch identity, normalized config, instruction/skill hashes и docs-index source hashes; Codebase Memory учитывается только как `unknown`/`unavailable`, без чтения исходников. Instruction discovery ограничен root/nested `AGENTS.md` и `CLAUDE.md`, а `read_project_instruction` допускает только ранее обнаруженный project-relative path с обычными exclude, containment и secret-scan правилами.
 
 Так как сервер работает через stdio, MCP обычно запускается клиентом, который его использует. По умолчанию это не long-running HTTP service.
 

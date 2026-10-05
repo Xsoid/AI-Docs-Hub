@@ -95,9 +95,9 @@ Project Lifecycle использует existing project config, secret/path safe
 
 ## MCP Bridge
 
-`mcp/server.py` - stdio MCP server. Он предоставляет tools для списка проектов, профилей, compact Project Context Manifest, on-demand чтения project instructions, поиска, чтения разрешенных документов, индексации, lint, scaffold, Skill Intelligence, healthcheck и operation logs.
+`mcp/server.py` - stdio MCP server. Он предоставляет tools для списка проектов, профилей, compact Project Context Manifest, on-demand чтения project instructions, metadata-only snapshots и freshness checks, поиска, чтения разрешенных документов, индексации, lint, scaffold, Skill Intelligence, healthcheck и operation logs.
 
-`get_project_context` объединяет существующие project config, docs/index status, Skill Intelligence и quality metadata без preload содержимого. Instruction discovery ограничен root/nested `AGENTS.md` и `CLAUDE.md`, а `read_project_instruction` допускает только ранее обнаруженный project-relative path с обычными exclude, containment и secret-scan правилами.
+`get_project_context` объединяет существующие project config, docs/index status, Skill Intelligence, quality metadata и deterministic `context_fingerprint` без preload содержимого. `capture_project_context` сохраняет в ignored `storage/context-snapshots/<project>/` только metadata и digests, а `check_project_context` возвращает `fresh`, `stale`, `degraded` или `missing`. В fingerprint входят Git HEAD/branch и working patch identity, normalized config, instruction/skill hashes и docs-index source hashes; Codebase Memory учитывается только как `unknown`/`unavailable`, без чтения исходников. Instruction discovery ограничен root/nested `AGENTS.md` и `CLAUDE.md`, а `read_project_instruction` допускает только ранее обнаруженный project-relative path с обычными exclude, containment и secret-scan правилами.
 
 MCP работает через stdout/stdin JSON-RPC. Stdout зарезервирован для protocol messages; logs должны идти в stderr.
 
