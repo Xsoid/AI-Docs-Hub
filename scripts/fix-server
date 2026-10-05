@@ -18,6 +18,7 @@ FIX_DIR = ROOT / "storage" / "runtime" / "fixes"
 ALLOWED_ACTIONS = {
     "rag.reindex",
     "generated.refresh",
+    "project.repair",
     "skill-audit",
     "project-onboard",
     "quality-profile",

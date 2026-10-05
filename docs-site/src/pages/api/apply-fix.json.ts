@@ -4,6 +4,7 @@ const actions = [
   'codebase-memory.index',
   'docs-site.restart',
   'generated.refresh',
+  'project.repair',
   'rag.reindex',
   'project-onboard',
   'quality-profile',

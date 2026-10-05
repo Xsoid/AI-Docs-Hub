@@ -911,8 +911,8 @@ def check_generated_context() -> Component:
         missing.append(f"{rel_to_root(report_path)} ({report_error})")
 
     report_warnings = (report or {}).get("warnings", []) if isinstance(report, dict) else []
-    skipped_projects = {
-        str(item.get("project"))
+    project_warnings = {
+        str(item.get("project")): item
         for item in report_warnings
         if isinstance(item, dict) and item.get("skipped") and item.get("project")
     }
@@ -920,7 +920,10 @@ def check_generated_context() -> Component:
     for config in real_project_configs():
         page = PROJECT_PAGES_DIR / config.project / "overview.md"
         exists = page.exists() and page.is_file()
-        context_included = config.project not in skipped_projects
+        warning = project_warnings.get(config.project, {})
+        context_included = not warning
+        secret_report = warning.get("secret_report", {}) if isinstance(warning, dict) else {}
+        secret_blocked = secret_report.get("blocked", []) if isinstance(secret_report, dict) else []
         if not exists:
             missing.append(rel_to_root(page))
         projects.append(
@@ -930,6 +933,8 @@ def check_generated_context() -> Component:
                 "page_exists": exists,
                 "context_included": context_included,
                 "path": rel_to_root(page),
+                "secret_blocked_count": len(secret_blocked) if isinstance(secret_blocked, list) else 0,
+                "config_issues": warning.get("issues", []) if isinstance(warning, dict) else [],
             }
         )
 
@@ -1003,6 +1008,7 @@ def attach_project_connections(
                 "status": "connected" if generated_connected else "missing",
                 "action": "" if generated_connected else "generated.refresh",
                 "action_label": "Собрать context",
+                "secret_blocked_count": int(generated.get("secret_blocked_count", 0) or 0),
             }
         )
 

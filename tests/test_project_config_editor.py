@@ -9,6 +9,7 @@ from rag.config import load_project_configs
 from rag.project_config_editor import (
     ProjectArtifactRefreshError,
     ProjectConfigEditError,
+    exclude_project_paths,
     refresh_project_artifacts,
     save_project_config,
 )
@@ -124,6 +125,33 @@ class ProjectConfigEditorTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ProjectArtifactRefreshError, "generated documentation refresh failed"):
             refresh_project_artifacts(runner=runner)
+
+    def test_quarantines_only_safe_project_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            configs_dir = Path(directory)
+            root = configs_dir / "project-root"
+            root.mkdir()
+            blocked = root / "docs" / "blocked.md"
+            blocked.parent.mkdir()
+            blocked.touch()
+            save_project_config(
+                {
+                    "project": "new-project",
+                    "title": "New Project",
+                    "namespace": "new-project",
+                    "root": str(root),
+                    "docs_backend": "auto",
+                    "mkdocs_config": "mkdocs.yml",
+                    "include": ["README.md"],
+                    "exclude": [".env"],
+                },
+                mode="create",
+                configs_dir=configs_dir,
+            )
+            self.assertEqual(exclude_project_paths("new-project", ["docs/blocked.md"], configs_dir=configs_dir), ["docs/blocked.md"])
+            self.assertIn("docs/blocked.md", load_project_configs(configs_dir)["new-project"].exclude)
+            with self.assertRaises(ProjectConfigEditError):
+                exclude_project_paths("new-project", ["../outside.md"], configs_dir=configs_dir)
 
 
 if __name__ == "__main__":

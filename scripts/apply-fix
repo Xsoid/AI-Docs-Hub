@@ -21,6 +21,7 @@ LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / "local.ai-docs-h
 ACTION_DESCRIPTIONS = {
     "rag.reindex": "Reindex one project namespace and regenerate generated context.",
     "generated.refresh": "Regenerate project pages and generated LLM context.",
+    "project.repair": "Quarantine secret-blocked project sources, then rebuild its index and generated context.",
     "skill-audit": "Run a read-only Skill Intelligence audit and store its local report.",
     "project-onboard": "Add or refresh the managed Project Lifecycle block in a connected project's AGENTS.md.",
     "quality-profile": "Refresh one project's local deterministic quality profile.",
@@ -30,7 +31,7 @@ ACTION_DESCRIPTIONS = {
     "runtime.start": "Start the persistent AI Docs Hub launchd runtime.",
     "runtime.install-start": "Install and start the persistent AI Docs Hub launchd runtime.",
 }
-PROJECT_ACTIONS = {"rag.reindex", "generated.refresh", "skill-audit", "codebase-memory.index", "project-onboard", "quality-profile", "verify-patch"}
+PROJECT_ACTIONS = {"rag.reindex", "generated.refresh", "project.repair", "skill-audit", "codebase-memory.index", "project-onboard", "quality-profile", "verify-patch"}
 JOB_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -171,6 +172,43 @@ def action_generated_refresh(project: str | None) -> dict[str, Any]:
     }
 
 
+def action_project_repair(project: str | None) -> dict[str, Any]:
+    """Safely complete a project connection without reading blocked source content.
+
+    Secret scanner findings are quarantined as exact project-relative excludes.
+    The connected project itself is not edited; its Hub binding is updated before
+    rebuilding the derived index and context.
+    """
+    config = validate_project(project)
+    assert project is not None
+    from rag.lite import check_project_secrets  # noqa: PLC0415
+    from rag.project_config_editor import exclude_project_paths  # noqa: PLC0415
+
+    secret_report = check_project_secrets(config)
+    blocked = secret_report.get("blocked", [])
+    paths = [str(item.get("source_path", "")) for item in blocked if isinstance(item, dict)]
+    excluded = exclude_project_paths(project, paths)
+
+    pages_result = command_result([sys.executable, str(ROOT / "scripts" / "generate-project-pages")], timeout=180)
+    require_ok(pages_result, "failed to regenerate project pages during project repair")
+    index_result = command_result(
+        [sys.executable, str(ROOT / "scripts" / "index-project"), "--project", project, "--reindex"],
+        timeout=180,
+    )
+    require_ok(index_result, f"failed to reindex {project} during project repair")
+    llms_result = command_result([sys.executable, str(ROOT / "scripts" / "generate-llms")], timeout=180)
+    require_ok(llms_result, "failed to regenerate generated context during project repair")
+    suffix = f"; quarantined {len(excluded)} source(s) from Hub discovery" if excluded else ""
+    return {
+        "status": "ok",
+        "message": f"completed connection repair for {project}{suffix}",
+        "project": project,
+        "namespace": config.namespace,
+        "excluded_sources_count": len(excluded),
+        "commands": [pages_result, index_result, llms_result],
+    }
+
+
 def action_skill_audit(project: str | None) -> dict[str, Any]:
     validate_project(project)
     assert project is not None
@@ -299,6 +337,8 @@ def run_action(action: str, project: str | None) -> dict[str, Any]:
         return action_rag_reindex(project)
     if action == "generated.refresh":
         return action_generated_refresh(project)
+    if action == "project.repair":
+        return action_project_repair(project)
     if action == "skill-audit":
         return action_skill_audit(project)
     if action == "project-onboard":

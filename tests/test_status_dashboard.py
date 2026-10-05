@@ -15,6 +15,13 @@ class StatusDashboardTests(unittest.TestCase):
         self.assertIn("function projectCard", source)
         self.assertIn("function renderSystems", source)
 
+    def test_incomplete_project_has_a_real_repair_action(self) -> None:
+        source = STATUS_PAGE.read_text(encoding="utf-8")
+        self.assertIn("project.repair", source)
+        self.assertIn("Привести в порядок", source)
+        self.assertIn("r.status==='indexed'&&!r.stale", source)
+        self.assertIn("r.secret_blocked_count", source)
+
 
 if __name__ == "__main__":
     unittest.main()

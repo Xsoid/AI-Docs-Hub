@@ -217,6 +217,50 @@ def save_project_config(
     return load_project_configs(configs_dir)[project]
 
 
+def exclude_project_paths(project: str, paths: list[str], *, configs_dir: Path = CONFIGS_DIR) -> list[str]:
+    """Add exact safe project-relative paths to a Hub config's excludes.
+
+    This is used only to quarantine files already blocked by the secret scanner.
+    It never edits the connected project or accepts paths outside its root.
+    """
+    configs_dir = configs_dir.resolve()
+    configs = load_project_configs(configs_dir)
+    config = configs.get(project)
+    if config is None:
+        raise ProjectConfigEditError(f"unknown project: {project}")
+
+    normalized: list[str] = []
+    for value in paths:
+        candidate = _string(value, "exclude", limit=512).replace("\\", "/")
+        pure = Path(candidate)
+        if pure.is_absolute() or ".." in pure.parts:
+            raise ProjectConfigEditError("blocked source path escapes project root")
+        try:
+            resolved = (config.root / pure).resolve(strict=True)
+            resolved.relative_to(config.root.resolve())
+        except (OSError, ValueError):
+            raise ProjectConfigEditError("blocked source path is not a project file") from None
+        if candidate not in normalized:
+            normalized.append(candidate)
+
+    current_exclude = list(config.raw.get("exclude", []))
+    additions = [path for path in normalized if path not in current_exclude]
+    if not additions:
+        return []
+
+    data = dict(config.raw)
+    data["exclude"] = [*current_exclude, *additions]
+    serialized = dump_project_yaml(data)
+    temporary = config.config_path.with_suffix(config.config_path.suffix + ".tmp")
+    temporary.write_text(serialized, encoding="utf-8")
+    try:
+        temporary.replace(config.config_path)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    return additions
+
+
 def refresh_project_artifacts(
     *,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,

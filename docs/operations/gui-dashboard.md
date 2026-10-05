@@ -95,6 +95,9 @@ storage/logs/apply-fix-*.log
 - `rag.reindex` - собрать или актуализировать docs index;
 - `generated.refresh` - пересобрать project pages и `llms*.txt`;
 - `codebase-memory.index` - создать project-owned `.cbmignore`, если его нет, и построить moderate code graph с `persistence=false`.
+- `project.repair` - кнопка `Привести в порядок` в header неполной matrix: безопасно quarantine-ит exact blocked source paths только в Hub binding и затем пересобирает все derived artifacts проекта.
+
+Если Generated context остановлен secret scan, карточка показывает число blocked sources и не предлагает бесполезно повторять `Собрать context`. `project.repair` не раскрывает содержимое файла и не меняет подключенный project: он добавляет уже заблокированные project-relative paths в `exclude` локального Hub config, после чего rebuild-ит project page, RAG и context.
 
 Code graph считается подключенным только при `graph indexed + project-scoped MCP configured + managed AGENTS rules installed`. Если существует только graph index, dashboard показывает `требует внимания` и кнопку `Завершить подключение`. После успешного onboarding панель операции напоминает перезапустить Codex.
 

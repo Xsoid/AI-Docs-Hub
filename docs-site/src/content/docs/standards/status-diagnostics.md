@@ -62,6 +62,7 @@ Dashboard может показывать кнопки исправления т
 
 - `rag.reindex` - переиндексировать конкретный project namespace через `scripts/index-project --reindex` и затем регенерировать `llms*.txt`;
 - `generated.refresh` - пересобрать generated project pages и `llms*.txt`;
+- `project.repair` - привести незавершенное подключение в порядок: exact-path quarantine уже заблокированных secret-scan источников в Hub config, затем пересобрать project page, RAG index и `llms*.txt`; source-файлы подключенного проекта не изменяются;
 - `codebase-memory.index` - после явного нажатия подготовить project-owned `.cbmignore` и построить scoped code graph;
 - `skill-audit` - после явного нажатия выполнить read-only Skill Intelligence audit и сохранить локальный report;
 - `docs-site.restart` - перезапустить persistent runtime через `scripts/hub-launchd restart`;
@@ -84,4 +85,4 @@ scripts/apply-fix
 
 Endpoint не принимает произвольные команды. Project-scoped actions должны валидировать project config, сохранять namespace isolation и проходить обычные exclude/secret-scan правила indexing.
 
-Project details включают connection matrix для `docs-rag`, `generated-context` и `codebase-memory` со статусами `connected`, `attention` или `missing` и только allowlisted action для исправимого состояния. Codebase details дополнительно возвращают `mcp_configured`, `agent_rules_installed` и `fully_connected`; один graph index без agent onboarding не считается полным подключением.
+Project details включают connection matrix для `docs-rag`, `generated-context` и `codebase-memory` со статусами `connected`, `attention` или `missing` и только allowlisted action для исправимого состояния. Dashboard показывает `Привести в порядок`, если matrix неполная. RAG с `security_skipped` — это `attention`, а не connected; Generated context передает число blocked sources, чтобы повторный `generated.refresh` не выглядел решением. Codebase details дополнительно возвращают `mcp_configured`, `agent_rules_installed` и `fully_connected`; один graph index без agent onboarding не считается полным подключением.
