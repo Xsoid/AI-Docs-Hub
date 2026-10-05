@@ -87,6 +87,8 @@ def _quote(value: Any) -> str:
         return "null"
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
     return json.dumps(str(value), ensure_ascii=False)
 
 
@@ -163,6 +165,7 @@ def save_project_config(
         path = current.config_path.resolve()
     else:
         data = {
+            "schema_version": 1,
             "project": project,
             "namespace": project,
             "title": project,
@@ -189,6 +192,7 @@ def save_project_config(
     for field in EDITABLE_FIELDS:
         data[field] = editable[field]
     data["project"] = project
+    data["schema_version"] = 1
 
     serialized = dump_project_yaml(data)
     with tempfile.TemporaryDirectory(prefix="ai-docs-project-config-") as validation_dir:

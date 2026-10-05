@@ -11,6 +11,14 @@ configs/projects/*.yaml
 
 Они описывают, какие project files хаб может читать, как изолировать namespace и какие правила передавать агентам.
 
+## Schema v1
+
+Tracked-конфиги используют `schema_version: 1`. Loader сначала проверяет raw YAML, затем применяет defaults и только после этого строит `ProjectConfig`. Разрешены только поля `schema_version`, `project`, `namespace`, `title`, `root`, `docs_backend`, `mkdocs_config`, `sources`, `include`, `exclude` и `agent_rules`; неизвестное поле, неверный scalar/list/object или неверный `schema_version` блокирует конфиг с машинно-читаемыми `level`, `code`, `field` и совместимым `message`.
+
+`project` и `root` обязательны. `namespace` по умолчанию равен `project`, `title` по умолчанию равен `project`, `docs_backend` по умолчанию равен `auto`, `mkdocs_config` - `mkdocs.yml`, остальные списки по умолчанию пусты. `sources` содержит объекты только с непустыми строковыми `path` и `type`; `include` должен содержать хотя бы один pattern после semantic validation.
+
+Конфиг без `schema_version` считается legacy текущего формата: он продолжает загружаться и проходит прежние path/security checks, но `make validate-configs` выводит warning `legacy_config` с рекомендацией добавить `schema_version: 1`. Пользовательские локальные configs автоматически не переписываются. Конфликты `project` и `namespace`, включая коллизии после нормализации, блокируются централизованно в `validate_all_configs()`.
+
 ## Обязательные Поля
 
 - `project` - стабильный project id.

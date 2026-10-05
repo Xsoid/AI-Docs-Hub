@@ -192,6 +192,7 @@ configs/projects/my-project.yaml
 
 ```yaml
 project: my-project
+schema_version: 1
 namespace: my-project
 title: "My Project"
 root: "${AI_DOCS_PROJECTS_ROOT}/my-project"
@@ -250,6 +251,8 @@ agent_rules:
 ```sh
 make validate-configs
 ```
+
+Новый tracked-конфиг должен содержать `schema_version: 1`. Валидатор отклоняет неизвестные поля и неверные типы до построения `ProjectConfig`, а также проверяет конфликты `project`/`namespace`. Конфиги без версии временно поддерживаются как legacy и получают warning; Hub не переписывает их автоматически.
 
 Посмотреть, какие рекомендованные файлы документации Хаб может создать:
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 
@@ -46,6 +47,8 @@ def _parse_scalar(value: str) -> Any:
         return True
     if value in {"false", "False", "FALSE"}:
         return False
+    if re.fullmatch(r"[-+]?\d+", value):
+        return int(value)
     if (value.startswith('"') and value.endswith('"')) or (
         value.startswith("'") and value.endswith("'")
     ):
@@ -117,4 +120,3 @@ def _load_restricted_yaml(path: Path) -> dict[str, Any]:
         result[key] = items if mode == "list" else mapping
 
     return result
-
