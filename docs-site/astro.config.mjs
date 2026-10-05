@@ -8,7 +8,8 @@ export default defineConfig({
       title: 'AI Docs Hub',
       description: 'Local docs-as-code, llms.txt, RAG, and MCP infrastructure for project documentation.',
       components: {
-        MarkdownContent: './src/components/MarkdownContent.astro'
+        MarkdownContent: './src/components/MarkdownContent.astro',
+        Footer: './src/components/SiteFooter.astro'
       },
       sidebar: [
         {

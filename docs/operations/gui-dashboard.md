@@ -10,6 +10,8 @@ GUI dashboard - локальная панель управления AI Docs Hub
 http://localhost:4321/status/
 ```
 
+В footer status dashboard и обычного docs-site выводится кликабельный `© Xsoid.Net`, ведущий на `https://xsoid.net/`.
+
 Цель страницы - дать понятный ответ без чтения логов и JSON:
 
 - хаб работает;

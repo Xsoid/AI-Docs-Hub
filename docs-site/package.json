@@ -8,6 +8,8 @@
     "npm": ">=10"
   },
   "scripts": {
+    "prebuild": "python3.11 ../scripts/generate-hub-pages && python3.11 ../scripts/generate-project-pages",
+    "predev": "python3.11 ../scripts/generate-hub-pages && python3.11 ../scripts/generate-project-pages",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview"

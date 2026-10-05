@@ -11,7 +11,7 @@ AI Docs Hub - это локальная multi-stack система. У кажд�
 - Python 3.11: operational scripts, загрузка project configs, Lite RAG, MCP stdio server, healthcheck, источник данных для status API, allowlisted fix actions, watcher, documentation scaffold, secret scanning, generated project pages и генерация `llms*.txt`;
 - Node.js 22 LTS и npm 10: runtime и build pipeline для docs-site;
 - Astro 6 и Starlight: сайт документации, shell страницы `/status/`, status/fix API endpoints, навигация, сборка search index и рендеринг контента из `docs-site/src/content/docs/`;
-- Markdown docs-as-code: source-документация хаба в `docs/`, source-страницы docs-site в `docs-site/src/content/docs/` и документация подключенных проектов внутри самих проектов;
+- Markdown docs-as-code: единственная ручная source-документация хаба в `docs/`; Starlight-представления architecture, operations и standards генерируются в `docs-site/src/content/docs/`; документация подключенных проектов остается внутри самих проектов;
 - YAML project config: `configs/projects/*.yaml` задают project root, namespace, source include/exclude rules, agent rules и docs backend mode;
 - MkDocs adapter: read-only structural discovery для проектов с `mkdocs.yml` или `mkdocs.yaml`; adapter не запускает MkDocs plugins, hooks, Python code или Markdown extensions;
 - Lite JSON/BM25 RAG: локальная индексация и поиск по разрешенной документации проектов, хранение в `storage/index`;

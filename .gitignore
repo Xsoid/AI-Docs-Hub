@@ -110,6 +110,15 @@ docs-site/.netlify/
 docs-site/src/content/docs/projects/*
 !docs-site/src/content/docs/projects/example-project/
 !docs-site/src/content/docs/projects/example-project/**
+docs-site/src/content/docs/hub/architecture.md
+docs-site/src/content/docs/hub/codebase-memory.md
+docs-site/src/content/docs/hub/command-reference.md
+docs-site/src/content/docs/hub/gui-dashboard.md
+docs-site/src/content/docs/hub/local-runtime.md
+docs-site/src/content/docs/hub/macos-menu-bar.md
+docs-site/src/content/docs/hub/project-lifecycle.md
+docs-site/src/content/docs/hub/runtime-observability.md
+docs-site/src/content/docs/standards/*.md
 
 # Generated llms.txt artifacts
 docs-site/public/llms*.txt

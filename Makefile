@@ -3,15 +3,19 @@ PROJECT ?= example-project
 SCOPE ?= working
 KIND ?= code
 
-.PHONY: setup project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status logs clean-cache validate-configs
+.PHONY: setup hub-pages project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
 	./scripts/docs-npm install
 	$(PYTHON) scripts/generate-project-pages
+	$(PYTHON) scripts/generate-hub-pages
 	$(PYTHON) scripts/validate-configs
 
-project-pages:
+hub-pages:
+	$(PYTHON) scripts/generate-hub-pages
+
+project-pages: hub-pages
 	$(PYTHON) scripts/generate-project-pages
 
 docs-dev: project-pages

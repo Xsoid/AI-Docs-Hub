@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,19 @@ from rag.security import scan_text_for_secrets  # noqa: E402
 DOCS_ROOT = HUB_ROOT / "docs-site" / "src" / "content" / "docs"
 PUBLIC_DIR = HUB_ROOT / "docs-site" / "public"
 GENERATED_DIR = HUB_ROOT / "storage" / "generated"
+
+
+def refresh_hub_pages() -> None:
+    result = subprocess.run(
+        [sys.executable, str(HUB_ROOT / "scripts" / "generate-hub-pages")],
+        cwd=str(HUB_ROOT),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        raise RuntimeError("failed to render canonical Hub documentation for generated context")
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
@@ -179,6 +193,7 @@ def write_outputs(files: dict[str, str], report: dict[str, Any]) -> None:
 
 
 def main() -> int:
+    refresh_hub_pages()
     hub_docs = read_hub_docs()
     project_docs, warnings = read_project_docs()
     docs = hub_docs + project_docs

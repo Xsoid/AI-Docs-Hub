@@ -8,7 +8,7 @@
 
 Это строгое правило, которое нельзя игнорировать. Это не рекомендация на потом, а часть реализации.
 
-Нельзя завершать изменение хаба, если из-за него появилась новая команда, зависимость, статусное поле, runtime workflow, MCP/RAG behavior, docs-site behavior, generated context behavior, project config behavior, agent workflow или architectural concept, но source-документация хаба и matching docs-site content остались старыми.
+Нельзя завершать изменение хаба, если из-за него появилась новая команда, зависимость, статусное поле, runtime workflow, MCP/RAG behavior, docs-site behavior, generated context behavior, project config behavior, agent workflow или architectural concept, но source-документация хаба не обновлена.
 
 Если документацию нельзя обновить в том же change, реализация считается незавершенной и это нужно явно сообщить.
 
@@ -219,4 +219,10 @@ Change note должен содержать:
 
 Change notes хаба хранятся только в `docs/changes/`. Не создавайте копии в `docs-site/src/content/docs/changes/`: это дублирование, а не обязательное docs-site mirror.
 
-В docs-site синхронизируются source standards и hand-authored documentation, когда это требуется правилами docs-as-code. Change notes не являются отдельным зеркальным набором страниц.
+## Каноническое Хранение Hub Docs
+
+Ручная Hub-документация хранится только в `docs/**/*.md`. `scripts/generate-hub-pages` производит Starlight-представления для architecture, operations и standards в `docs-site/src/content/docs/`; эти файлы помечены generated marker, ignored Git и не редактируются вручную.
+
+Новая Hub-страница сначала создается в `docs/`. Нельзя создавать вторую ручную копию в docs-site. Site-only UI pages, пока не мигрированные в `docs/`, остаются единственным исключением и не должны повторять существующий canonical документ.
+
+Change notes хранятся только в `docs/changes/` и не являются отдельным зеркальным набором страниц.
