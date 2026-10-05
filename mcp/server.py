@@ -51,6 +51,11 @@ from rag.context_freshness import (  # noqa: E402
     capture_project_context,
     check_project_context,
 )
+from rag.mcp_audit import (  # noqa: E402
+    HUB_SERVER,
+    audit_tool_call,
+    usage_summary,
+)
 
 
 Json = dict[str, Any]
@@ -59,6 +64,7 @@ Json = dict[str, Any]
 class McpServer:
     def __init__(self, active_project: str | None = None):
         self.active_project = active_project
+        self.client_info: str | None = None
         self.tools: dict[str, Callable[[Json], Json]] = {
             "list_projects": self.tool_list_projects,
             "get_project_profile": self.tool_get_project_profile,
@@ -66,6 +72,7 @@ class McpServer:
             "read_project_instruction": self.tool_read_project_instruction,
             "capture_project_context": self.tool_capture_project_context,
             "check_project_context": self.tool_check_project_context,
+            "get_mcp_usage_summary": self.tool_get_mcp_usage_summary,
             "search_docs": self.tool_search_docs,
             "read_doc": self.tool_read_doc,
             "search_decisions": self.tool_search_decisions,
@@ -127,6 +134,10 @@ class McpServer:
         if not snapshot_id:
             raise ValueError("snapshot_id is required")
         return check_project_context(self.resolve_project(args), snapshot_id)
+
+    def tool_get_mcp_usage_summary(self, args: Json) -> Json:
+        project = self.resolve_project(args) if self.active_project else (str(args["project"]) if args.get("project") else None)
+        return usage_summary(project=project, window_hours=int(args.get("window_hours", 24)))
 
     def tool_search_docs(self, args: Json) -> Json:
         project = self.resolve_project(args)
@@ -430,6 +441,18 @@ class McpServer:
                         "snapshot_id": {"type": "string"},
                     },
                     "required": (["snapshot_id"] if self.active_project else ["project", "snapshot_id"]),
+                },
+            },
+            {
+                "name": "get_mcp_usage_summary",
+                "description": "Return a bounded, read-only aggregate of sanitized local MCP audit events without raw arguments or results.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "window_hours": {"type": "integer", "default": 24, "minimum": 1, "maximum": 168},
+                    },
+                    "required": [] if self.active_project else [],
                 },
             },
             {
@@ -737,6 +760,15 @@ class McpServer:
         request_id = message.get("id")
         if method == "initialize":
             params = message.get("params") or {}
+            client_info = params.get("clientInfo")
+            if isinstance(client_info, dict):
+                client_name = client_info.get("name")
+                client_version = client_info.get("version")
+                if isinstance(client_name, str):
+                    value = client_name[:60]
+                    if isinstance(client_version, str) and client_version:
+                        value = f"{value}/{client_version[:30]}"
+                    self.client_info = value
             protocol_version = params.get("protocolVersion") or "2025-06-18"
             return {
                 "jsonrpc": "2.0",
@@ -756,11 +788,29 @@ class McpServer:
         if method == "tools/call":
             params = message.get("params") or {}
             name = params.get("name")
-            args = params.get("arguments") or {}
+            raw_args = params.get("arguments") or {}
+            args = raw_args if isinstance(raw_args, dict) else {}
             if name not in self.tools:
+                with audit_tool_call(
+                    server=HUB_SERVER,
+                    project=self.active_project or args.get("project"),
+                    tool=str(name or "unknown"),
+                    arguments=dict(args),
+                    client=self.client_info,
+                ) as audit:
+                    audit.finish(status="error", is_error=True, error=ValueError("unknown tool"))
                 return self.error(request_id, -32602, f"Unknown tool: {name}")
             try:
-                result = self.tools[str(name)](dict(args))
+                audit_project = self.active_project or args.get("project")
+                with audit_tool_call(
+                    server=HUB_SERVER,
+                    project=audit_project,
+                    tool=str(name),
+                    arguments=dict(args),
+                    client=self.client_info,
+                ) as audit:
+                    result = self.tools[str(name)](dict(args))
+                    audit.finish(result=result)
                 text = json.dumps(result, ensure_ascii=False)
                 return {
                     "jsonrpc": "2.0",

@@ -121,6 +121,8 @@ Apply использует только полное reviewed content, объя�
 
 `get_project_context` объединяет существующие project config, docs/index status, Skill Intelligence, quality metadata и deterministic `context_fingerprint` без preload содержимого. `capture_project_context` сохраняет в ignored `storage/context-snapshots/<project>/` только component metadata и digests; `check_project_context` сравнивает snapshot с текущим состоянием и возвращает `fresh`, `stale`, `degraded` или `missing`. В fingerprint входят Git HEAD/branch и working patch identity, normalized config, instruction/skill hashes и docs-index source hashes; Codebase Memory учитывается только как `unknown`/`unavailable`, без чтения исходников. Instruction discovery ограничен root/nested `AGENTS.md` и `CLAUDE.md`, а `read_project_instruction` допускает только ранее обнаруженный project-relative path с обычными exclude, containment и secret-scan правилами.
 
+Каждый MCP `tools/call` Hub и Codebase Memory proxy дополнительно записывает sanitized event в ignored `storage/mcp-audit/YYYY-MM-DD.jsonl`. В event входят только timestamp, server, project, tool, allowlisted tool class/metadata, duration, status и bounded result size; raw arguments, queries, пути, contents, findings, credentials и exception messages запрещены. `get_mcp_usage_summary` агрегирует calls/errors по project и tool за bounded window, не раскрывая JSONL и исключая собственный summary call из счетчиков. Это local observability, а не внешняя telemetry.
+
 Так как сервер работает через stdio, MCP обычно запускается клиентом, который его использует. По умолчанию это не long-running HTTP service.
 
 ### Project Lifecycle / Quality Gate

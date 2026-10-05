@@ -13,6 +13,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = Path(os.environ.get("CODEBASE_MEMORY_BIN", ROOT / "storage/runtime/bin/codebase-memory-mcp"))
 CACHE_DIR = Path(os.environ.get("CBM_CACHE_DIR", ROOT / "storage/codebase-memory"))
+sys.path.insert(0, str(ROOT))
+from rag.mcp_audit import (  # noqa: E402
+    CODEBASE_SERVER,
+    AuditCall,
+    write_event,
+)
 ALLOWED_TOOLS = {
     "detect_changes",
     "get_architecture",
@@ -64,6 +70,7 @@ def main() -> int:
     assert process.stdout is not None
     assert process.stderr is not None
     threading.Thread(target=copy_stderr, args=(process.stderr,), daemon=True).start()
+    client_info: str | None = None
 
     try:
         for raw_line in sys.stdin:
@@ -73,9 +80,27 @@ def main() -> int:
                 print(json.dumps(error_response(None, "invalid JSON-RPC request")), flush=True)
                 continue
             request_id = request.get("id")
+            if request.get("method") == "initialize":
+                params = request.get("params") or {}
+                info = params.get("clientInfo")
+                if isinstance(info, dict) and isinstance(info.get("name"), str):
+                    client_info = str(info["name"])[:60]
+                    if isinstance(info.get("version"), str) and info["version"]:
+                        client_info = f"{client_info}/{str(info['version'])[:30]}"
             if request.get("method") == "tools/call":
                 tool_name = (request.get("params") or {}).get("name")
+                tool_arguments = (request.get("params") or {}).get("arguments") or {}
+                audit_project = args.project or tool_arguments.get("project")
+                audit = AuditCall(
+                    server=CODEBASE_SERVER,
+                    project=audit_project,
+                    tool=str(tool_name or "unknown"),
+                    arguments=dict(tool_arguments) if isinstance(tool_arguments, dict) else {},
+                    client=client_info,
+                )
                 if tool_name not in ALLOWED_TOOLS:
+                    audit.finish(status="error", is_error=True, error=PermissionError("blocked_tool"))
+                    write_event(audit.event())
                     print(
                         json.dumps(
                             error_response(request_id, f"tool is blocked by AI Docs Hub policy: {tool_name}")
@@ -86,6 +111,8 @@ def main() -> int:
                 tool_arguments = (request.get("params") or {}).setdefault("arguments", {})
                 requested_project = tool_arguments.get("project")
                 if args.project and requested_project and requested_project != args.project:
+                    audit.finish(status="error", is_error=True, error=PermissionError("project_scope"))
+                    write_event(audit.event())
                     print(
                         json.dumps(
                             error_response(
@@ -102,6 +129,9 @@ def main() -> int:
             process.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
             process.stdin.flush()
             if request_id is None:
+                if request.get("method") == "tools/call":
+                    audit.finish(status="ok")
+                    write_event(audit.event())
                 continue
             while True:
                 response_line = process.stdout.readline()
@@ -116,6 +146,14 @@ def main() -> int:
                     tools = result.get("tools") or []
                     result["tools"] = [tool for tool in tools if tool.get("name") in ALLOWED_TOOLS]
                     response["result"] = result
+                if request.get("method") == "tools/call":
+                    is_error = bool(response.get("error") or (response.get("result") or {}).get("isError"))
+                    audit.finish(
+                        status="error" if is_error else "ok",
+                        is_error=is_error,
+                        result=response.get("result"),
+                    )
+                    write_event(audit.event())
                 print(json.dumps(response, ensure_ascii=False), flush=True)
                 break
     finally:

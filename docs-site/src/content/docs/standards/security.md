@@ -49,3 +49,5 @@ Default stack не отправляет project contents во внешние API
 ## Lifecycle Reports
 
 Project Lifecycle stores only local ignored metadata and digests. Review records must not contain external project source snippets, full diff, generated AGENTS content, real absolute project paths or secrets. Secret scan and path safety remain hard invariants; missing optional security tooling is not passed silently.
+
+MCP audit соблюдает тот же принцип: в `storage/mcp-audit/` попадают только sanitized allowlisted metadata и bounded агрегаты. Query, source/document content, source paths, snippets, diff, findings evidence, credentials, headers, environment variables и полные exception messages запрещены. Ошибка записи audit не должна менять ответ MCP; retention ограничивает daily JSONL files.

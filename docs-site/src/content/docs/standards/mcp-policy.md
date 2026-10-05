@@ -30,6 +30,7 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 - `read_project_instruction`;
 - `capture_project_context`;
 - `check_project_context`;
+- `get_mcp_usage_summary`;
 - `search_docs`;
 - `read_doc`;
 - `search_decisions`;
@@ -52,6 +53,8 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 `read_project_instruction` принимает только project-relative path, ранее найденный manifest discovery. Он не превращается в общий filesystem reader: применяются `safe_resolve`, configured/default excludes, project-root containment, secret scan и лимит `250_000` bytes; содержимое выдаётся только on-demand с `content_hash` и `truncated`.
 
 `capture_project_context` и `check_project_context` работают project-scoped и read-only. Snapshot хранится в ignored `storage/context-snapshots/<project>/<snapshot-id>.json` и содержит только deterministic digests, статусы и безопасные metadata: source contents, raw diff, queries и credentials туда не записываются. Freshness states: `fresh`, `stale`, `degraded`, `missing`; неизвестный или недоступный optional Codebase Memory попадает в `unknown_components` и не считается подтвержденным fresh.
+
+Все `tools/call` Hub и Codebase Memory proxy имеют общий sanitized audit contract в ignored `storage/mcp-audit/YYYY-MM-DD.jsonl`. Записываются только safe project id, tool/class, duration, status, error category, result size и явные allowlisted metadata. Raw arguments, query, source paths, contents, snippets, diff, findings, credentials, headers, environment и exception messages не записываются. `get_mcp_usage_summary` возвращает bounded aggregate и не считает собственный summary call; audit остается локальным и не является внешней telemetry.
 
 ## Confirmation Rules
 

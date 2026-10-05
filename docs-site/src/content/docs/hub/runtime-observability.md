@@ -92,6 +92,12 @@ Plist:
 
 Persistent service не устанавливается автоматически.
 
+## MCP audit trail
+
+MCP bridge и Codebase Memory proxy пишут общий sanitized audit trail в `storage/mcp-audit/YYYY-MM-DD.jsonl`. Для каждого `tools/call` сохраняются только schema version, UTC timestamp, server, stdio transport, safe project id, tool/class, duration, status, error category, bounded result size и разрешенные boolean/enum metadata. Raw arguments, query, source/document contents, paths, snippets, diff, findings, credentials, headers, environment и полные exception messages не сохраняются. Ошибка audit writer не ломает MCP response.
+
+Retention по умолчанию составляет 30 дней и удаляет только daily JSONL files старше срока. Переменные `MCP_AUDIT_DIR` и `MCP_AUDIT_RETENTION_DAYS` разрешены для локальной диагностики; retention ограничен диапазоном 1–3650 дней. Summary доступен через `get_mcp_usage_summary` с bounded `window_hours` от 1 до 168; он агрегирует calls/errors по tools и servers, пропускает поврежденные строки и не учитывает собственные summary calls.
+
 ## Dashboard
 
 `/status/` вызывает `/api/hub-status.json`, а endpoint запускает:

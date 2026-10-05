@@ -102,6 +102,8 @@ Generated artifacts не редактируются вручную.
 
 Для проверки состояния контекста доступны project-scoped MCP tools `capture_project_context` и `check_project_context`. Они используют metadata-only snapshots в ignored `storage/context-snapshots/<project>/`; source contents и raw diff не сохраняются.
 
+`get_mcp_usage_summary` возвращает bounded aggregate локального sanitized audit trail по project/tool/server без raw arguments и результатов.
+
 `mcp/server.py` exposes:
 
 - `list_projects`;
@@ -122,6 +124,7 @@ Generated artifacts не редактируются вручную.
 - `create_skill_proposal`;
 - `create_skill_evolution_proposal`;
 - `apply_skill_proposal`.
+- `get_mcp_usage_summary`.
 
 `index_project` требует `confirm=true`, чтобы начать indexing через MCP. `scaffold_project_docs` требует `confirm=true`, чтобы писать files в подключенный проект.
 

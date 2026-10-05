@@ -99,6 +99,8 @@ Project Lifecycle использует existing project config, secret/path safe
 
 `get_project_context` объединяет существующие project config, docs/index status, Skill Intelligence, quality metadata и deterministic `context_fingerprint` без preload содержимого. `capture_project_context` сохраняет в ignored `storage/context-snapshots/<project>/` только metadata и digests, а `check_project_context` возвращает `fresh`, `stale`, `degraded` или `missing`. В fingerprint входят Git HEAD/branch и working patch identity, normalized config, instruction/skill hashes и docs-index source hashes; Codebase Memory учитывается только как `unknown`/`unavailable`, без чтения исходников. Instruction discovery ограничен root/nested `AGENTS.md` и `CLAUDE.md`, а `read_project_instruction` допускает только ранее обнаруженный project-relative path с обычными exclude, containment и secret-scan правилами.
 
+Каждый MCP `tools/call` Hub и Codebase Memory proxy пишет sanitized event в ignored `storage/mcp-audit/YYYY-MM-DD.jsonl`. В audit входят только safe metadata, duration/status и bounded result size; raw arguments, queries, пути, contents, findings и credentials запрещены. `get_mcp_usage_summary` агрегирует calls/errors по bounded window без раскрытия raw JSONL и исключает собственный вызов из счетчиков. Это local observability, а не внешняя telemetry.
+
 MCP работает через stdout/stdin JSON-RPC. Stdout зарезервирован для protocol messages; logs должны идти в stderr.
 
 Project-scoped запуск:
