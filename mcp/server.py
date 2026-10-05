@@ -43,6 +43,10 @@ from rag.project_lifecycle import (  # noqa: E402
     record_review,
     verify_patch,
 )
+from rag.project_context import (  # noqa: E402
+    build_project_context,
+    read_project_instruction,
+)
 
 
 Json = dict[str, Any]
@@ -54,6 +58,8 @@ class McpServer:
         self.tools: dict[str, Callable[[Json], Json]] = {
             "list_projects": self.tool_list_projects,
             "get_project_profile": self.tool_get_project_profile,
+            "get_project_context": self.tool_get_project_context,
+            "read_project_instruction": self.tool_read_project_instruction,
             "search_docs": self.tool_search_docs,
             "read_doc": self.tool_read_doc,
             "search_decisions": self.tool_search_decisions,
@@ -97,6 +103,15 @@ class McpServer:
 
     def tool_get_project_profile(self, args: Json) -> Json:
         return project_profile(self.resolve_project(args))
+
+    def tool_get_project_context(self, args: Json) -> Json:
+        return build_project_context(get_project_config(self.resolve_project(args)))
+
+    def tool_read_project_instruction(self, args: Json) -> Json:
+        source_path = str(args.get("source_path", "")).strip()
+        if not source_path:
+            raise ValueError("source_path is required")
+        return read_project_instruction(self.resolve_project(args), source_path)
 
     def tool_search_docs(self, args: Json) -> Json:
         project = self.resolve_project(args)
@@ -358,6 +373,27 @@ class McpServer:
                     "type": "object",
                     "properties": {"project": project_property},
                     "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "get_project_context",
+                "description": "Return a compact, read-only project context manifest with instruction metadata, skills, documentation status, capabilities, and deterministic next-tool hints.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"project": project_property},
+                    "required": [] if self.active_project else ["project"],
+                },
+            },
+            {
+                "name": "read_project_instruction",
+                "description": "Read only a previously discovered project AGENTS.md or CLAUDE.md by project-relative path; secret scanning and a byte limit apply.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": project_property,
+                        "source_path": {"type": "string"},
+                    },
+                    "required": (["source_path"] if self.active_project else ["project", "source_path"]),
                 },
             },
             {

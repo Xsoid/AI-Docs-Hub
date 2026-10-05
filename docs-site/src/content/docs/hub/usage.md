@@ -196,6 +196,8 @@ MCP tools:
 
 - `list_projects`;
 - `get_project_profile`;
+- `get_project_context`;
+- `read_project_instruction`;
 - `search_docs`;
 - `read_doc`;
 - `search_decisions`;
@@ -207,6 +209,8 @@ MCP tools:
 - `read_operation_log`.
 
 `index_project` и `scaffold_project_docs` требуют `confirm=true` для действий, которые пишут локальный index или проектные files.
+
+`get_project_context` отдаёт компактную карту контекста проекта: metadata инструкций, каталог skills, docs/index status, quality/capabilities и deterministic next-tool hints. `read_project_instruction` читает только найденный `AGENTS.md` или `CLAUDE.md` по project-relative path, с containment, excludes, secret scan и лимитом размера.
 
 ## Logs
 

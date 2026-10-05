@@ -95,7 +95,9 @@ Project Lifecycle использует existing project config, secret/path safe
 
 ## MCP Bridge
 
-`mcp/server.py` - stdio MCP server. Он предоставляет tools для списка проектов, профилей, поиска, чтения разрешенных документов, индексации, lint, scaffold, Skill Intelligence, healthcheck и operation logs.
+`mcp/server.py` - stdio MCP server. Он предоставляет tools для списка проектов, профилей, compact Project Context Manifest, on-demand чтения project instructions, поиска, чтения разрешенных документов, индексации, lint, scaffold, Skill Intelligence, healthcheck и operation logs.
+
+`get_project_context` объединяет существующие project config, docs/index status, Skill Intelligence и quality metadata без preload содержимого. Instruction discovery ограничен root/nested `AGENTS.md` и `CLAUDE.md`, а `read_project_instruction` допускает только ранее обнаруженный project-relative path с обычными exclude, containment и secret-scan правилами.
 
 MCP работает через stdout/stdin JSON-RPC. Stdout зарезервирован для protocol messages; logs должны идти в stderr.
 

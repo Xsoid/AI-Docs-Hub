@@ -56,6 +56,8 @@ def main() -> int:
         expected_tools = {
             "search_docs",
             "read_doc",
+            "get_project_context",
+            "read_project_instruction",
             "healthcheck",
             "analyze_skill_candidates",
             "get_skill_inventory",

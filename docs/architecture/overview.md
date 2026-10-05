@@ -117,7 +117,9 @@ Apply использует только полное reviewed content, объя�
 
 ### MCP Bridge
 
-`mcp/server.py` - stdio MCP server. Он предоставляет scoped-инструменты для списка проектов, чтения документации, поиска по индексам, индексации проектов, lint-проверки, Skill Intelligence и healthcheck.
+`mcp/server.py` - stdio MCP server. Он предоставляет scoped-инструменты для списка проектов, компактного Project Context Manifest, on-demand чтения project instructions, чтения документации, поиска по индексам, индексации проектов, lint-проверки, Skill Intelligence и healthcheck.
+
+`get_project_context` объединяет существующие project config, docs/index status, Skill Intelligence и quality metadata без preload содержимого. Instruction discovery ограничен root/nested `AGENTS.md` и `CLAUDE.md`, а `read_project_instruction` допускает только ранее обнаруженный project-relative path с обычными exclude, containment и secret-scan правилами.
 
 Так как сервер работает через stdio, MCP обычно запускается клиентом, который его использует. По умолчанию это не long-running HTTP service.
 
