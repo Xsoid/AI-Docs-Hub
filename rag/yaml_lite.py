@@ -73,50 +73,63 @@ def _load_restricted_yaml(path: Path) -> dict[str, Any]:
         indent = len(clean) - len(clean.lstrip(" "))
         lines.append((indent, clean.strip()))
 
-    result: dict[str, Any] = {}
-    i = 0
-    while i < len(lines):
-        indent, text = lines[i]
-        if indent != 0:
-            raise ValueError(f"Unexpected indentation in {path}: {text}")
-        key, value = _split_key_value(text)
-        if value:
-            result[key] = _parse_scalar(value)
-            i += 1
-            continue
+    if not lines:
+        return {}
 
-        i += 1
-        items: list[Any] = []
+    def parse_block(index: int, indent: int) -> tuple[Any, int]:
+        if index >= len(lines) or lines[index][0] != indent:
+            raise ValueError(f"Unexpected indentation in {path}")
+        is_list = lines[index][1].startswith("- ")
+        if is_list:
+            values: list[Any] = []
+            while index < len(lines) and lines[index][0] == indent:
+                _, text = lines[index]
+                if not text.startswith("- "):
+                    raise ValueError(f"Mixed YAML list and mapping in {path}: {text}")
+                item_text = text[2:].strip()
+                index += 1
+                if not item_text:
+                    if index >= len(lines) or lines[index][0] <= indent:
+                        raise ValueError(f"Missing nested value in {path}: {text}")
+                    value, index = parse_block(index, lines[index][0])
+                    values.append(value)
+                    continue
+                if ":" not in item_text or item_text.startswith(('"', "'")):
+                    values.append(_parse_scalar(item_text))
+                    continue
+                key, value_text = _split_key_value(item_text)
+                item: dict[str, Any] = {key: _parse_scalar(value_text)} if value_text else {key: {}}
+                while index < len(lines) and lines[index][0] > indent:
+                    child_indent, child_text = lines[index]
+                    if child_indent != indent + 2 or child_text.startswith("- "):
+                        raise ValueError(f"Unsupported YAML indentation in {path}: {child_text}")
+                    child_key, child_value = _split_key_value(child_text)
+                    index += 1
+                    if child_value:
+                        item[child_key] = _parse_scalar(child_value)
+                    elif index < len(lines) and lines[index][0] > child_indent:
+                        item[child_key], index = parse_block(index, lines[index][0])
+                    else:
+                        item[child_key] = {}
+                values.append(item)
+            return values, index
+
         mapping: dict[str, Any] = {}
-        mode: str | None = None
-
-        while i < len(lines) and lines[i][0] > indent:
-            child_indent, child_text = lines[i]
-            if child_indent == 2 and child_text.startswith("- "):
-                mode = "list"
-                item_text = child_text[2:].strip()
-                if ":" in item_text and not item_text.startswith(('"', "'")):
-                    item: dict[str, Any] = {}
-                    item_key, item_value = _split_key_value(item_text)
-                    item[item_key] = _parse_scalar(item_value)
-                    i += 1
-                    while i < len(lines) and lines[i][0] >= 4:
-                        _, nested_text = lines[i]
-                        nested_key, nested_value = _split_key_value(nested_text)
-                        item[nested_key] = _parse_scalar(nested_value)
-                        i += 1
-                    items.append(item)
-                else:
-                    items.append(_parse_scalar(item_text))
-                    i += 1
-            elif child_indent == 2:
-                mode = "mapping"
-                child_key, child_value = _split_key_value(child_text)
-                mapping[child_key] = _parse_scalar(child_value)
-                i += 1
+        while index < len(lines) and lines[index][0] == indent:
+            _, text = lines[index]
+            if text.startswith("- "):
+                raise ValueError(f"Mixed YAML list and mapping in {path}: {text}")
+            key, value = _split_key_value(text)
+            index += 1
+            if value:
+                mapping[key] = _parse_scalar(value)
+            elif index < len(lines) and lines[index][0] > indent:
+                mapping[key], index = parse_block(index, lines[index][0])
             else:
-                raise ValueError(f"Unsupported YAML indentation in {path}: {child_text}")
+                mapping[key] = {}
+        return mapping, index
 
-        result[key] = items if mode == "list" else mapping
-
+    result, end = parse_block(0, 0)
+    if end != len(lines) or not isinstance(result, dict):
+        raise ValueError(f"Unexpected YAML root in {path}")
     return result

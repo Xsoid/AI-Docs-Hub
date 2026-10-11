@@ -51,52 +51,61 @@ def documentation_readiness(config: Any) -> dict[str, Any]:
             "Add mkdocs.yml with site_name/docs_dir/nav or switch docs_backend to standard"
         )
 
-    _check_file(root, "README.md", "project overview", items, recommendations)
-    _check_file(root, "AGENTS.md", "project-specific agent rules", items, recommendations)
-
-    docs_root = root / docs_dir if docs_dir else root
-    if not docs_root.exists() or not docs_root.is_dir():
-        items.append(
-            {
-                "path": docs_dir or ".",
-                "kind": "directory",
-                "category": "core",
-                "status": "missing",
-                "message": f"Missing documentation directory: {docs_dir or '.'}",
-            }
-        )
-        recommendations.append(f"Create `{docs_dir or '.'}` and add project documentation")
+    requirements = _configured_requirements(config)
+    if requirements is not None:
+        for requirement in requirements:
+            if requirement["kind"] == "directory":
+                _check_markdown_dir(root, requirement["path"], requirement["label"], items, recommendations)
+            else:
+                _check_file(root, requirement["path"], requirement["label"], items, recommendations)
+            items[-1]["category"] = requirement["category"]
     else:
-        items.append(
-            {
-                "path": docs_dir or ".",
-                "kind": "directory",
-                "category": "core",
-                "status": "ok",
-                "message": f"Documentation directory exists: {docs_dir or '.'}",
-            }
-        )
-        if not any(docs_root.rglob("*.md")):
+        _check_file(root, "README.md", "project overview", items, recommendations)
+        _check_file(root, "AGENTS.md", "project-specific agent rules", items, recommendations)
+
+        docs_root = root / docs_dir if docs_dir else root
+        if not docs_root.exists() or not docs_root.is_dir():
             items.append(
                 {
                     "path": docs_dir or ".",
-                    "kind": "content",
+                    "kind": "directory",
                     "category": "core",
-                    "status": "empty",
-                    "message": f"No Markdown files found under {docs_dir or '.'}",
+                    "status": "missing",
+                    "message": f"Missing documentation directory: {docs_dir or '.'}",
                 }
             )
-            recommendations.append(f"Add Markdown documentation under `{docs_dir or '.'}`")
+            recommendations.append(f"Create `{docs_dir or '.'}` and add project documentation")
+        else:
+            items.append(
+                {
+                    "path": docs_dir or ".",
+                    "kind": "directory",
+                    "category": "core",
+                    "status": "ok",
+                    "message": f"Documentation directory exists: {docs_dir or '.'}",
+                }
+            )
+            if not any(docs_root.rglob("*.md")):
+                items.append(
+                    {
+                        "path": docs_dir or ".",
+                        "kind": "content",
+                        "category": "core",
+                        "status": "empty",
+                        "message": f"No Markdown files found under {docs_dir or '.'}",
+                    }
+                )
+                recommendations.append(f"Add Markdown documentation under `{docs_dir or '.'}`")
 
-    _check_file(root, _join_rel(docs_dir, "index.md"), "documentation landing page", items, recommendations)
+        _check_file(root, _join_rel(docs_dir, "index.md"), "documentation landing page", items, recommendations)
 
-    for child, label, category in RECOMMENDED_DIRS:
-        _check_markdown_dir(root, _join_rel(docs_dir, child), label, items, recommendations)
-        items[-1]["category"] = category
+        for child, label, category in RECOMMENDED_DIRS:
+            _check_markdown_dir(root, _join_rel(docs_dir, child), label, items, recommendations)
+            items[-1]["category"] = category
 
-    for child, label, category in RECOMMENDED_FILES:
-        _check_file(root, _join_rel(docs_dir, child), label, items, recommendations)
-        items[-1]["category"] = category
+        for child, label, category in RECOMMENDED_FILES:
+            _check_file(root, _join_rel(docs_dir, child), label, items, recommendations)
+            items[-1]["category"] = category
 
     coverage = _coverage(items)
     status = "ok" if not recommendations else "needs_work"
@@ -116,6 +125,23 @@ def documentation_recommendation_issues(config: Any) -> list[dict[str, str]]:
     return [
         {"level": "recommendation", "message": recommendation}
         for recommendation in readiness.get("recommendations", [])
+    ]
+
+
+def _configured_requirements(config: Any) -> list[dict[str, str]] | None:
+    raw = getattr(config, "raw", {}) or {}
+    configured = raw.get("documentation_readiness")
+    if not isinstance(configured, dict) or not isinstance(configured.get("items"), list):
+        return None
+    return [
+            {
+                "path": str(item["path"]).strip(),
+                "kind": str(item["kind"]).strip(),
+                "label": str(item["label"]).strip(),
+                "category": str(item["category"]).strip(),
+            }
+        for item in configured["items"]
+        if isinstance(item, dict)
     ]
 
 

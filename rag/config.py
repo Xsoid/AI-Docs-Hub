@@ -32,9 +32,12 @@ PROJECT_CONFIG_FIELDS = {
     "include",
     "exclude",
     "agent_rules",
+    "documentation_readiness",
 }
 SOURCE_FIELDS = {"path", "type"}
 LIST_FIELDS = {"include", "exclude", "agent_rules"}
+DOCUMENTATION_READINESS_FIELDS = {"items"}
+DOCUMENTATION_READINESS_ITEM_FIELDS = {"path", "kind", "label", "category"}
 
 
 class ProjectConfigSchemaError(ValueError):
@@ -282,6 +285,39 @@ def validate_project_config_schema(data: Any) -> list[dict[str, str]]:
                         error("required_field", f"{field_prefix}.{field}", f"Missing required source field: {field}")
                     elif not isinstance(source[field], str) or not source[field].strip():
                         error("invalid_type", f"{field_prefix}.{field}", f"{field_prefix}.{field} must be a non-empty string")
+    if "documentation_readiness" in data:
+        readiness = data["documentation_readiness"]
+        if not isinstance(readiness, dict):
+            error("invalid_type", "documentation_readiness", "documentation_readiness must be an object")
+        else:
+            for field in sorted(set(readiness) - DOCUMENTATION_READINESS_FIELDS):
+                error("unknown_field", f"documentation_readiness.{field}", f"Unknown documentation_readiness field: {field}")
+            items = readiness.get("items")
+            if not isinstance(items, list) or not items:
+                error("invalid_type", "documentation_readiness.items", "documentation_readiness.items must be a non-empty list")
+            else:
+                for index, item in enumerate(items):
+                    prefix = f"documentation_readiness.items[{index}]"
+                    if not isinstance(item, dict):
+                        error("invalid_type", prefix, f"{prefix} must be an object")
+                        continue
+                    for field in sorted(set(item) - DOCUMENTATION_READINESS_ITEM_FIELDS):
+                        error("unknown_field", f"{prefix}.{field}", f"Unknown documentation readiness item field: {field}")
+                    for field in DOCUMENTATION_READINESS_ITEM_FIELDS:
+                        if field not in item:
+                            error("required_field", f"{prefix}.{field}", f"Missing required documentation readiness item field: {field}")
+                    path = item.get("path")
+                    if not isinstance(path, str) or not path.strip():
+                        error("invalid_type", f"{prefix}.path", f"{prefix}.path must be a non-empty relative path")
+                    elif Path(path).is_absolute() or ".." in Path(path).parts:
+                        error("invalid_value", f"{prefix}.path", f"{prefix}.path must stay inside the project root")
+                    for field in ("kind", "label", "category"):
+                        if not isinstance(item.get(field), str) or not item[field].strip():
+                            error("invalid_type", f"{prefix}.{field}", f"{prefix}.{field} must be a non-empty string")
+                    if item.get("kind") not in {"file", "directory"}:
+                        error("invalid_enum", f"{prefix}.kind", f"{prefix}.kind must be file or directory")
+                    if item.get("category") not in {"core", "technical"}:
+                        error("invalid_enum", f"{prefix}.category", f"{prefix}.category must be core or technical")
     return issues
 
 

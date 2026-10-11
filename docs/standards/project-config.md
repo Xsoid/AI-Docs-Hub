@@ -10,7 +10,7 @@ configs/projects/*.yaml
 
 ## Schema v1
 
-Tracked-конфиги используют `schema_version: 1`. Loader сначала проверяет raw YAML, затем применяет defaults и только после этого строит `ProjectConfig`. Разрешены только поля `schema_version`, `project`, `namespace`, `title`, `root`, `docs_backend`, `mkdocs_config`, `sources`, `include`, `exclude` и `agent_rules`; неизвестное поле, неверный scalar/list/object или неверный `schema_version` блокирует конфиг с машинно-читаемыми `level`, `code`, `field` и совместимым `message`.
+Tracked-конфиги используют `schema_version: 1`. Loader сначала проверяет raw YAML, затем применяет defaults и только после этого строит `ProjectConfig`. Разрешены только поля `schema_version`, `project`, `namespace`, `title`, `root`, `docs_backend`, `mkdocs_config`, `sources`, `include`, `exclude`, `agent_rules` и `documentation_readiness`; неизвестное поле, неверный scalar/list/object или неверный `schema_version` блокирует конфиг с машинно-читаемыми `level`, `code`, `field` и совместимым `message`.
 
 `project` и `root` обязательны. `namespace` по умолчанию равен `project`, `title` по умолчанию равен `project`, `docs_backend` по умолчанию равен `auto`, `mkdocs_config` - `mkdocs.yml`, остальные списки по умолчанию пусты. `sources` содержит объекты только с непустыми строковыми `path` и `type`; `include` должен содержать хотя бы один pattern после semantic validation.
 
@@ -31,6 +31,26 @@ Tracked-конфиги используют `schema_version: 1`. Loader снач
 - `sources` - структурное описание источников.
 - `exclude` - запретные paths.
 - `agent_rules` - project-specific rules для agents.
+- `documentation_readiness` - optional project-specific checklist канонических documentation paths.
+
+## Documentation Readiness Profile
+
+Если проект использует осмысленную структуру документации, отличную от общего scaffold, binding может объявить собственный checklist вместо искусственного создания пустых `docs/index.md`, `docs/api/` или других шаблонных путей.
+
+```yaml
+documentation_readiness:
+  items:
+    - path: docs/README.md
+      kind: file
+      label: documentation entrypoint
+      category: core
+    - path: docs/architecture
+      kind: directory
+      label: architecture documentation
+      category: technical
+```
+
+Каждый item обязан содержать project-relative `path`, `kind` (`file` или `directory`), непустой `label` и `category` (`core` или `technical`). Абсолютные пути, выход через `..`, glob-паттерны и произвольные поля не допускаются. Directory считается готовой только при наличии Markdown внутри. Профиль меняет только readiness diagnostics: он не расширяет RAG include surface, не создаёт документы и не меняет source of truth проекта.
 
 ## Path Portability
 
