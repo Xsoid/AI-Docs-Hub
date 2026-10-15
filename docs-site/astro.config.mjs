@@ -21,6 +21,7 @@ export default defineConfig({
             { label: 'Автономная настройка', slug: 'hub/autonomous-setup' },
             { label: 'Использование', slug: 'hub/usage' },
             { label: 'Справочник команд', slug: 'hub/command-reference' },
+            { label: 'Аудит документации', slug: 'hub/documentation-audit' },
             { label: 'Project Lifecycle / Quality Gate', slug: 'hub/project-lifecycle' },
             { label: 'Правила агентов', slug: 'hub/agent-rules' }
           ]
@@ -40,6 +41,7 @@ export default defineConfig({
           items: [
             { label: 'Documentation', slug: 'standards/documentation' },
             { label: 'Documentation Hygiene', slug: 'standards/documentation-hygiene' },
+            { label: 'Technical Writing', slug: 'standards/technical-writing' },
             { label: 'Project Config', slug: 'standards/project-config' },
             { label: 'Source Discovery', slug: 'standards/source-discovery' },
             { label: 'llms.txt', slug: 'standards/llms-txt' },

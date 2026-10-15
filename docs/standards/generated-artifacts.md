@@ -1,37 +1,14 @@
-# Generated Artifacts Standard
+# Generated-Артефакты
 
-Generated artifacts являются производными от docs-as-code и configs.
+Generated-артефакт нельзя редактировать вручную. Измените его канонический вход или генератор, затем выполните генерацию.
 
-## Artifacts
+| Артефакт | Канонический источник | Генератор | Хранение |
+| --- | --- | --- | --- |
+| Hub architecture, operations и standards pages | `docs/architecture/`, `docs/operations/`, `docs/standards/` | `scripts/generate-hub-pages` | ignored `docs-site/src/content/docs/hub/` и `standards/` |
+| Project overview pages | local project config, index и readiness metadata | `scripts/generate-project-pages` | ignored `docs-site/src/content/docs/projects/` |
+| `llms*.txt` | canonical docs и allowed project metadata | `scripts/generate-llms` | ignored `docs-site/public/` и `storage/generated/` |
+| Indexes, reports и runtime state | local runtime inputs | runtime scripts | ignored `storage/` |
 
-- `storage/index/*.json`;
-- `storage/index/*_log.jsonl`;
-- `storage/generated/*`;
-- `docs-site/public/llms*.txt`;
-- `docs-site/src/content/docs/projects/*`;
-- `docs-site/dist/`;
-- `storage/runtime/*`;
-- `storage/logs/*`;
-- `build/AI Docs Hub.app`.
-- `storage/runtime/bin/codebase-memory-mcp` и `storage/codebase-memory/*`.
-- `storage/skill-intelligence/<project>/*` — project-derived skill inventory, audits и proposals; artifacts не коммитятся и не зеркалируются в docs-site.
+`docs-site/src/content/docs/index.md` and the tracked pages in `hub/` are site-only entry pages. They can contain route-specific navigation and short descriptions. They must link to canonical `docs/` content for rules and procedures.
 
-## Правила
-
-- Не редактировать generated artifacts вручную как source documentation.
-- Source changes должны вноситься в `docs/`, `docs-site/src/content/docs/`, project docs или configs.
-- Generated artifacts можно пересоздавать командами `make project-pages`, `make llms`, `make index`, `make docs-build`.
-- Allowlisted fix action `rag.reindex` пересоздает project index и после успешной индексации запускает regeneration `llms*.txt`.
-- Generated project pages являются web-представлением configs/index/readiness, а не source docs проекта.
-- Перед генерацией `llms*.txt` Hub пересобирает Starlight-представления canonical `docs/`, поэтому generated context читает только актуальную производную версию единственного ручного источника.
-- Skill Intelligence inventory, audit и proposal JSON являются local-only derived artifacts. Для внешнего проекта их единственное Hub-хранилище — ignored `storage/skill-intelligence/<project>/`; apply пишет только в разрешенные paths внутри внешнего project root.
-
-## Status
-
-`hub-status` проверяет generated context:
-
-- наличие `llms*.txt` в public и storage mirrors;
-- наличие `llms-report.json`;
-- наличие generated overview page для каждого real project config.
-
-Missing generated artifacts являются operational warning.
+Run `make hub-pages` after a Hub-documentation change. The generator fails before an output collision or a non-generated page overwrite. It removes only obsolete pages that contain its marker and are inside managed Hub or standards directories.

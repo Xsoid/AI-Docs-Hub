@@ -1,42 +1,42 @@
 # AI Docs Hub Agent Rules
 
-This repository is the local AI Docs Hub. It stores infrastructure, generated artifacts, templates, indexes, and ecosystem-level documentation. Project-specific documentation must stay inside each connected project.
+AI Docs Hub stores local infrastructure, templates, generated artifacts, indexes, and ecosystem documentation. Documentation for a connected project stays in that project.
 
-## Git Workflow
+## Required Boundaries
 
-Work directly in `main`. Do not create feature, task, or agent branches for AI Docs Hub changes unless the user explicitly overrides this rule.
+- Work in `main`. Do not create a feature, task, or agent branch unless the user explicitly requests it.
+- Keep connected-project namespaces separate. Treat connected projects as read-only unless the user explicitly authorizes a write.
+- Do not index, commit, quote, or copy `.env`, keys, credentials, tokens, cookies, sessions, dumps, secret-looking files, or project-derived content into tracked Hub files.
+- Keep `configs/projects/`, `storage/`, generated pages, and `llms*.txt` local and ignored. Docs-as-code is the source; indexes and generated context are derived artifacts.
+- A scoped edit to `~/.codex/config.toml` is permitted only when Codex or MCP setup requires it. Report that edit.
 
-## Non-Negotiable Documentation Rule
+## Documentation Duty
 
-Hub documentation is part of the implementation. This rule must never be ignored.
+Documentation is part of every Hub implementation. For a change to architecture, RAG, MCP, docs-site, indexing, generated context, runtime, operations, dependencies, commands, status fields, project-config behavior, or agent workflow, update the canonical document in `docs/` in the same change. Add a note in `docs/changes/` when the change affects use, operations, debugging, or extension.
 
-Any AI Docs Hub change that affects architecture, RAG, MCP, docs-site, indexing, generated context, project config behavior, runtime, operations, stack dependencies, commands, status fields, or agent workflow must update the source documentation in `docs/` and the matching docs-site content in `docs-site/src/content/docs/` in the same change.
+Do not manually edit pages marked as generated. Run `make hub-pages` to render canonical Hub documentation into the docs site. Hand-authored site-only pages may change only for unique site navigation or presentation; they must link to the canonical rule instead of restating it. If code and documentation conflict, report both paths and resolve the conflict.
 
-If the behavior affects usage, operations, debugging, or extension, the same change must also add a change note in `docs/changes/`.
+## Repository Map
 
-Do not finish a hub change by leaving documentation as a follow-up. If the documentation cannot be updated in the same change, stop and report that the implementation is incomplete.
+| Area | Canonical documentation |
+| --- | --- |
+| `configs/projects/` | `docs/standards/project-config.md` |
+| `rag/` | `docs/standards/rag-policy.md` |
+| `mcp/` | `docs/standards/mcp-policy.md` |
+| `docs-site/`, `storage/` | `docs/standards/generated-artifacts.md` |
+| `scripts/`, `Makefile` | `docs/operations/command-reference.md` |
+| `templates/` | `docs/standards/scaffold.md` |
+| `docs/` | `docs/README.md` |
 
-Local project connection is an explicit exception: creating or updating a local project binding under `configs/projects/`, indexing a connected project, generating project pages or `llms*.txt`, creating Codebase Memory caches, or onboarding project-scoped MCP/routing rules must never create or modify tracked files under `docs/`, `docs-site/`, or `docs/changes/`. These operations are local runtime/configuration work. A change note is required only when the Hub's connection policy or implementation itself is changed, not when an individual project is connected.
+Read `docs/architecture/overview.md` before changing architecture, RAG, MCP, docs-site, indexing, or generated context. Read the applicable document in `docs/standards/` before changing its policy.
 
-Avoid duplicate documentation artifacts. Change notes are stored only in `docs/changes/`; do not create mirrored copies under `docs-site/src/content/docs/changes/`. Docs-site should mirror source standards and hand-authored documentation where required, while generated project pages and local runtime artifacts remain governed by their own source-of-truth rules.
+## Agent Workflow Routing
 
-Before changing RAG, MCP, docs-site, indexing, or generated context behavior:
+For every code change, use these procedures in order. They own the workflow details and the current patch-fingerprint requirements:
 
-1. Read the architecture docs in `docs-site/src/content/docs/hub/architecture.md`.
-2. Read the relevant policy docs in `docs-site/src/content/docs/standards/`.
-3. Keep project namespaces isolated.
-4. Never index `.env`, private keys, credentials, tokens, cookies, sessions, dumps, or secret-looking files.
-5. Treat connected projects as read-only unless the user explicitly asks for edits in that project.
-6. Global `~/.codex/config.toml` may be edited when the task requires Codex or MCP setup; keep those edits scoped and report them.
-7. If documentation and code conflict, report the conflict with source paths instead of hiding it.
-8. If project context is not found, say that the search returned no matching context.
-9. Remember that docs-as-code is the source of truth. RAG indexes and `llms*.txt` files are derived artifacts.
-10. Do not leave hub documentation as a follow-up when the current change creates a new concept, command, status field, stack dependency, or operational workflow.
+1. `.agents/skills/code-change-verification/SKILL.md`
+2. `.agents/skills/code-review/SKILL.md`
+3. `.agents/skills/security-review/SKILL.md`
+4. `.agents/skills/pre-publish/SKILL.md`
 
-Do not mix context from different projects unless the user directly asks for cross-project analysis.
-
-## Documentation Hygiene
-
-- The permanent documentation-hygiene policy is canonical in `docs/standards/documentation-hygiene.md`.
-- Keep `AGENTS.md` limited to global guardrails and routing; store agent workflow in `.agents/skills/` and product, architecture, UI, and runtime contracts in `docs/`.
-- After documentation reorganization, check links, connected-project MkDocs navigation, the AI Docs Hub index, and generated `llms*.txt`; for substantial documentation changes, also check whether an existing document should be split or merged.
+Use `docs/standards/documentation-hygiene.md` for document ownership and `docs/standards/technical-writing.md` for writing style. Do not copy those rules into this file.

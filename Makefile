@@ -3,7 +3,7 @@ PROJECT ?= example-project
 SCOPE ?= working
 KIND ?= code
 
-.PHONY: setup hub-pages project-pages docs-dev docs-build llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status logs clean-cache validate-configs
+.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -23,6 +23,13 @@ docs-dev: project-pages
 
 docs-build: project-pages
 	./scripts/docs-npm run build
+
+docs-audit:
+	$(PYTHON) scripts/audit-docs
+
+docs-check:
+	$(PYTHON) scripts/audit-docs --strict
+	$(PYTHON) scripts/generate-hub-pages --check
 
 llms: project-pages
 	$(PYTHON) scripts/generate-llms

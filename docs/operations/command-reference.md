@@ -62,6 +62,16 @@ http://localhost:4321/
 
 Generated artifacts не редактируются вручную.
 
+## Документация Hub
+
+| Команда | Назначение |
+| --- | --- |
+| `make hub-pages` | Рендерить generated Hub pages из canonical `docs/`. |
+| `make docs-audit` | Показать blocking ownership/link errors и advisory style candidates без изменения файлов. |
+| `make docs-check` | Проверить документацию и завершиться с ошибкой при blocking error или stale generated output. Команда не регенерирует страницы. |
+
+Сначала выполните `make hub-pages`, затем `make docs-check`. Используйте [стиль технического письма](../standards/technical-writing.md) для текущих инструкций. Не редактируйте страницы с generated marker.
+
 ## RAG И Watcher
 
 | Команда | Назначение |

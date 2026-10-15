@@ -110,14 +110,13 @@ docs-site/.netlify/
 docs-site/src/content/docs/projects/*
 !docs-site/src/content/docs/projects/example-project/
 !docs-site/src/content/docs/projects/example-project/**
-docs-site/src/content/docs/hub/architecture.md
-docs-site/src/content/docs/hub/codebase-memory.md
-docs-site/src/content/docs/hub/command-reference.md
-docs-site/src/content/docs/hub/gui-dashboard.md
-docs-site/src/content/docs/hub/local-runtime.md
-docs-site/src/content/docs/hub/macos-menu-bar.md
-docs-site/src/content/docs/hub/project-lifecycle.md
-docs-site/src/content/docs/hub/runtime-observability.md
+# Hub and standard pages rendered from canonical Markdown in docs/.  Keep the
+# small set of site-only entry pages tracked.
+docs-site/src/content/docs/hub/*.md
+!docs-site/src/content/docs/hub/agent-rules.md
+!docs-site/src/content/docs/hub/autonomous-setup.md
+!docs-site/src/content/docs/hub/overview.md
+!docs-site/src/content/docs/hub/usage.md
 docs-site/src/content/docs/standards/*.md
 
 # Generated llms.txt artifacts
