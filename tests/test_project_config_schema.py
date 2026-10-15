@@ -71,6 +71,22 @@ include:
                 Path(directory, "invalid.yaml").write_text("project: 1\nroot: r\n", encoding="utf-8")
                 load_project_configs(Path(directory))
 
+    def test_public_metadata_paths_must_be_exact_supported_docs_paths(self) -> None:
+        issues = validate_project_config_schema(
+            {
+                "schema_version": 1,
+                "project": "metadata-project",
+                "root": "${AI_DOCS_PROJECTS_ROOT}/metadata-project",
+                "public_metadata_paths": ["docs/design/tokens.json", "docs/*.json", "private/token.json", "docs/key.pem", "docs/design/secret.json"],
+            }
+        )
+
+        invalid_fields = {issue["field"] for issue in issues if issue["code"] == "invalid_value"}
+        self.assertEqual(
+            invalid_fields,
+            {"public_metadata_paths[1]", "public_metadata_paths[2]", "public_metadata_paths[3]", "public_metadata_paths[4]"},
+        )
+
     def test_duplicate_project_and_namespace_are_reported(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "project"

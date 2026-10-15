@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .config import HUB_ROOT, ProjectConfig, get_project_config, is_unbound_example_config
-from .security import is_excluded, safe_resolve, scan_text_for_secrets
+from .security import is_excluded, normalize_rel, safe_resolve, scan_text_for_secrets
 
 
 LIFECYCLE_STORAGE_DIR = HUB_ROOT / "storage" / "project-lifecycle"
@@ -310,10 +310,22 @@ def _surface(changed_files: Iterable[str], texts: Iterable[str] = ()) -> dict[st
     return {"surface": found, "docs_only": docs_only, "risk_level": "low" if docs_only else "high" if high.intersection(found) else "medium"}
 
 
-def _secret_check(changed_files: list[str], diff_text: str) -> dict[str, Any]:
+def _public_metadata_paths(config: ProjectConfig) -> set[str]:
+    values = config.raw.get("public_metadata_paths", [])
+    if not isinstance(values, list):
+        return set()
+    return {normalize_rel(value) for value in values if isinstance(value, str)}
+
+
+def _secret_check(config: ProjectConfig, changed_files: list[str], diff_text: str) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
+    public_metadata_paths = _public_metadata_paths(config)
     for path in changed_files:
-        if is_excluded(path, []) and any(token in path.lower() for token in (".env", "secret", "token", "password", "credential", "cookie", "session", ".key", ".pem")):
+        if (
+            is_excluded(path, [])
+            and normalize_rel(path) not in public_metadata_paths
+            and any(token in path.lower() for token in (".env", "secret", "token", "password", "credential", "cookie", "session", ".key", ".pem"))
+        ):
             findings.append({"kind": "secret_looking_path", "path": path})
     for finding in scan_text_for_secrets(diff_text):
         findings.append({"kind": str(finding.get("kind", "secret_pattern")), "line": int(finding.get("line", 0))})
@@ -334,7 +346,7 @@ def verify_patch(config: str | ProjectConfig, *, scope: str = "working", base: s
         staged_check = _run_check(root, ["git", "diff", "--cached", "--check"], timeout)
         staged_check["id"] = "git-diff-check-staged"
         checks.append(staged_check)
-    secret = _secret_check(changed_files, material.decode("utf-8", errors="replace"))
+    secret = _secret_check(project_config, changed_files, material.decode("utf-8", errors="replace"))
     secret["id"] = "secret-scan"
     checks.append(secret)
     for item in profile["verification"]["checks"]:

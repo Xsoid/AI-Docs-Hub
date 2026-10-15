@@ -119,6 +119,7 @@ def _config_identity(config: ProjectConfig) -> dict[str, Any]:
         "sources": sorted(sources, key=canonical_json),
         "include": sorted(str(value) for value in config.include),
         "exclude": sorted(str(value) for value in config.exclude),
+        "public_metadata_paths": sorted(str(value) for value in config.raw.get("public_metadata_paths", [])),
         "agent_rules": list(config.agent_rules),
     }
     return _component(status="available", payload=payload, metadata={"schema_version": config.schema_version})

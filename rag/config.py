@@ -31,11 +31,14 @@ PROJECT_CONFIG_FIELDS = {
     "sources",
     "include",
     "exclude",
+    "public_metadata_paths",
     "agent_rules",
     "documentation_readiness",
 }
 SOURCE_FIELDS = {"path", "type"}
 LIST_FIELDS = {"include", "exclude", "agent_rules"}
+PUBLIC_METADATA_SUFFIXES = {".json", ".md", ".toml", ".txt", ".yaml", ".yml"}
+PUBLIC_METADATA_FORBIDDEN_MARKERS = (".env", "secret", "password", "credential", "cookie", "session", ".key", ".pem")
 DOCUMENTATION_READINESS_FIELDS = {"items"}
 DOCUMENTATION_READINESS_ITEM_FIELDS = {"path", "kind", "label", "category"}
 
@@ -268,6 +271,24 @@ def validate_project_config_schema(data: Any) -> list[dict[str, str]]:
             for index, item in enumerate(value):
                 if not isinstance(item, str):
                     error("invalid_type", f"{field}[{index}]", f"Project config field '{field}[{index}]' must be a string")
+    if "public_metadata_paths" in data:
+        paths = data["public_metadata_paths"]
+        if not isinstance(paths, list) or not paths:
+            error("invalid_type", "public_metadata_paths", "public_metadata_paths must be a non-empty list")
+        else:
+            for index, value in enumerate(paths):
+                field = f"public_metadata_paths[{index}]"
+                if not isinstance(value, str) or not value.strip():
+                    error("invalid_type", field, f"{field} must be a non-empty relative path")
+                    continue
+                normalized = value.replace("\\", "/")
+                path = Path(normalized)
+                if path.is_absolute() or ".." in path.parts or any(marker in normalized for marker in ("*", "?", "[", "]")):
+                    error("invalid_value", field, f"{field} must be an exact path inside docs")
+                elif not normalized.startswith("docs/") or path.suffix.lower() not in PUBLIC_METADATA_SUFFIXES:
+                    error("invalid_value", field, f"{field} must name a supported public file inside docs")
+                elif any(marker in normalized.casefold() for marker in PUBLIC_METADATA_FORBIDDEN_MARKERS):
+                    error("invalid_value", field, f"{field} must not use a protected secret-looking name")
     if "sources" in data:
         sources = data["sources"]
         if not isinstance(sources, list):

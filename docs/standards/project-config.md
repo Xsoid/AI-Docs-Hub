@@ -10,7 +10,7 @@ configs/projects/*.yaml
 
 ## Schema v1
 
-Tracked-конфиги используют `schema_version: 1`. Loader сначала проверяет raw YAML, затем применяет defaults и только после этого строит `ProjectConfig`. Разрешены только поля `schema_version`, `project`, `namespace`, `title`, `root`, `docs_backend`, `mkdocs_config`, `sources`, `include`, `exclude`, `agent_rules` и `documentation_readiness`; неизвестное поле, неверный scalar/list/object или неверный `schema_version` блокирует конфиг с машинно-читаемыми `level`, `code`, `field` и совместимым `message`.
+Tracked-конфиги используют `schema_version: 1`. Loader сначала проверяет raw YAML, затем применяет defaults и только после этого строит `ProjectConfig`. Разрешены только поля `schema_version`, `project`, `namespace`, `title`, `root`, `docs_backend`, `mkdocs_config`, `sources`, `include`, `exclude`, `public_metadata_paths`, `agent_rules` и `documentation_readiness`; неизвестное поле, неверный scalar/list/object или неверный `schema_version` блокирует конфиг с машинно-читаемыми `level`, `code`, `field` и совместимым `message`.
 
 `project` и `root` обязательны. `namespace` по умолчанию равен `project`, `title` по умолчанию равен `project`, `docs_backend` по умолчанию равен `auto`, `mkdocs_config` - `mkdocs.yml`, остальные списки по умолчанию пусты. `sources` содержит объекты только с непустыми строковыми `path` и `type`; `include` должен содержать хотя бы один pattern после semantic validation.
 
@@ -30,8 +30,15 @@ Tracked-конфиги используют `schema_version: 1`. Loader снач
 - `mkdocs_config` - relative path к MkDocs config.
 - `sources` - структурное описание источников.
 - `exclude` - запретные paths.
+- `public_metadata_paths` - точные public paths в `docs/` для исключения из одной name-only lifecycle эвристики.
 - `agent_rules` - project-specific rules для agents.
 - `documentation_readiness` - optional project-specific checklist канонических documentation paths.
+
+## Public Metadata Paths
+
+`public_metadata_paths` разрешает только точные относительные paths в `docs/` с расширением `.json`, `.yaml`, `.yml`, `.toml`, `.md` или `.txt`. Поле применяется только к эвристике имени файла в `verify_patch`. Оно не изменяет `exclude`, source discovery, индексирование или secret scan diff.
+
+Используйте это поле только для публичных декларативных данных, когда имя файла содержит слово `token`. Не используйте glob, путь вне `docs/`, `.env`, `secret`, ключ или credential file.
 
 ## Documentation Readiness Profile
 

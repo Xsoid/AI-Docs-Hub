@@ -117,6 +117,31 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertNotIn(str(self.root), json_text(profile))
         self.assertFalse((self.storage / "synthetic-lifecycle" / "quality-profile.json").read_text(encoding="utf-8").find(str(self.root)) >= 0)
 
+    def test_declared_public_metadata_path_bypasses_only_name_heuristic(self) -> None:
+        metadata = self.root / "docs" / "design" / "tokens.json"
+        metadata.parent.mkdir(parents=True)
+        metadata.write_text('{"active": "#006C98"}\n', encoding="utf-8")
+        config = ProjectConfig(**{**self.config.__dict__, "raw": {"public_metadata_paths": ["docs/design/tokens.json"]}})
+        with patch("rag.project_lifecycle.LIFECYCLE_STORAGE_DIR", self.storage):
+            verification = verify_patch(config)
+
+        secret = next(check for check in verification["checks"] if check["id"] == "secret-scan")
+        self.assertEqual(verification["status"], "passed")
+        self.assertEqual(secret["status"], "passed")
+
+    def test_public_metadata_path_does_not_bypass_secret_content_scan(self) -> None:
+        metadata = self.root / "docs" / "design" / "tokens.json"
+        metadata.parent.mkdir(parents=True)
+        metadata.write_text('{"token": "sk-0123456789abcdefghijk"}\n', encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", str(metadata)], check=True)
+        config = ProjectConfig(**{**self.config.__dict__, "raw": {"public_metadata_paths": ["docs/design/tokens.json"]}})
+        with patch("rag.project_lifecycle.LIFECYCLE_STORAGE_DIR", self.storage):
+            verification = verify_patch(config)
+
+        secret = next(check for check in verification["checks"] if check["id"] == "secret-scan")
+        self.assertEqual(verification["status"], "failed")
+        self.assertIn("openai_key", {finding["kind"] for finding in secret["findings"]})
+
     def test_adaptive_review_context_distinguishes_docs_and_auth_surface(self) -> None:
         docs_dir = self.root / "docs"
         docs_dir.mkdir()
