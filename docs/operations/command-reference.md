@@ -151,6 +151,15 @@ Generated artifacts не редактируются вручную.
 
 Semantic review records пишутся через MCP tools record_code_review и record_security_review. Старый fingerprint не переносится после изменения patch. Reports external projects остаются в ignored storage/project-lifecycle.
 
+## Local Decision Engine
+
+| Command | Purpose |
+| --- | --- |
+| `make decision-status PROJECT=name` | Show the enabled local provider, mode, supported decisions and optional backend state. |
+| `make decision-benchmark` | Run the deterministic synthetic rules benchmark. It does not read a connected project. |
+
+The default provider is offline rules in shadow mode. `get_decision_status` is the matching read-only MCP diagnostic. The engine does not change Project Lifecycle gates, confirmations or review requirements. Auto mode is disabled in this release.
+
 ## Codebase Memory
 
 | Команда | Назначение |

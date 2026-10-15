@@ -27,6 +27,7 @@ READ_TOOLS = {
     "search_decisions", "search_modules", "healthcheck", "lint_project", "read_operation_log",
     "analyze_skill_candidates", "get_skill_inventory", "get_skill_proposal", "validate_skill_architecture",
     "get_quality_profile", "prepare_patch_review", "get_pre_publish_status", "get_mcp_usage_summary",
+    "get_decision_status",
 }
 MUTATION_TOOLS = {
     "index_project", "scaffold_project_docs", "create_skill_proposal", "create_skill_evolution_proposal",

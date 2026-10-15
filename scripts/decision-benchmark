@@ -1,0 +1,38 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+import argparse
+import json
+import sys
+import tempfile
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from rag.config import ProjectConfig
+from rag.decision_engine import DecisionEngine, EngineSettings
+
+parser = argparse.ArgumentParser(description="Run deterministic synthetic Decision Engine benchmark")
+parser.add_argument("--fixture", default=str(Path(__file__).resolve().parents[1] / "tests/fixtures/decision_benchmark.json"))
+args = parser.parse_args()
+cases = json.loads(Path(args.fixture).read_text(encoding="utf-8"))
+with tempfile.TemporaryDirectory() as temporary:
+    config = ProjectConfig("benchmark", "benchmark", "Benchmark", Path(temporary), "<BENCHMARK>", "standard", "mkdocs.yml", [], ["**/*"], [], [], Path(temporary) / "project.yaml", {})
+    engine = DecisionEngine(config, EngineSettings(mode="advisory"), Path(temporary) / "store")
+    outcomes = []
+    for case in cases:
+        result = engine.evaluate({"version": 1, "project": "benchmark", "namespace": "benchmark", "decision_id": case["decision_id"], "features": case["features"], "mode": "advisory", "fingerprint": "0" * 64})
+        outcomes.append({"id": case["id"], "expected": case["expected"], "actual": result["value"], "status": result["status"], "escalated": result["escalation_required"]})
+passed = sum(item["expected"] == item["actual"] and item["status"] == "ok" for item in outcomes)
+matrix: dict[str, dict[str, int]] = {}
+for item in outcomes:
+    expected, actual = str(item["expected"]), str(item["actual"])
+    matrix.setdefault(expected, {})[actual] = matrix.setdefault(expected, {}).get(actual, 0) + 1
+print(json.dumps({
+    "fixture": "synthetic", "provider": "rules", "cases": len(outcomes), "passed": passed,
+    "accuracy": passed / len(outcomes), "weighted_errors": len(outcomes) - passed,
+    "confusion_matrix": matrix, "precision": None, "recall": None,
+    "false_safe": sum(item["status"] != "ok" and item["actual"] in {False, "minimal", "none"} for item in outcomes),
+    "abstentions": sum(item["status"] != "ok" for item in outcomes),
+    "escalations": sum(item["escalated"] for item in outcomes), "provider_failures": 0,
+    "confidence_buckets": {"uncalibrated": sum(item["id"] in {"docs-risk", "skill-invalid"} for item in outcomes), "calibrated": 0},
+    "outcomes": outcomes,
+}, indent=2))
+raise SystemExit(0 if passed == len(outcomes) else 1)

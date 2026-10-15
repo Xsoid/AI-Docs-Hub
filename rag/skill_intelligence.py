@@ -779,6 +779,15 @@ def run_skill_audit(project: str | ProjectConfig, *, persist: bool = True) -> di
     _storage_project_dir(config.project)
     log_operation(config.project, "skill_audit_started", {"namespace": config.namespace})
     report = validate_skill_architecture(config)
+    from .decision_engine import DecisionEngine
+    engine = DecisionEngine(config)
+    for candidate in report.get("candidates", []):
+        scores = candidate.get("scores") if isinstance(candidate.get("scores"), dict) else {}
+        candidate["decision_priority"] = engine.evaluate({
+            "version": 1, "project": config.project, "namespace": config.namespace,
+            "decision_id": "skill.candidate_priority",
+            "features": {"candidate_score": float(scores.get("overall", 0)), "validation_errors": 0},
+        })
     report["audited_at"] = _utc_now()
     report["source_snapshot"] = _source_snapshot(config)
     if persist:

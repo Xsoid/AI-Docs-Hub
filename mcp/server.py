@@ -51,6 +51,7 @@ from rag.context_freshness import (  # noqa: E402
     capture_project_context,
     check_project_context,
 )
+from rag.decision_engine import decision_status  # noqa: E402
 from rag.mcp_audit import (  # noqa: E402
     HUB_SERVER,
     audit_tool_call,
@@ -96,6 +97,7 @@ class McpServer:
             "record_security_review": self.tool_record_security_review,
             "get_pre_publish_status": self.tool_get_pre_publish_status,
             "onboard_project": self.tool_onboard_project,
+            "get_decision_status": self.tool_get_decision_status,
         }
 
     def resolve_project(self, args: Json) -> str:
@@ -381,12 +383,20 @@ class McpServer:
             }
         return onboard_project(project, write=True)
 
+    def tool_get_decision_status(self, args: Json) -> Json:
+        return decision_status(get_project_config(self.resolve_project(args)))
+
     def tool_specs(self) -> list[Json]:
         project_property = {
             "type": "string",
             "description": "Project name from configs/projects. Optional when server was started with --project.",
         }
         return [
+            {
+                "name": "get_decision_status",
+                "description": "Return local Decision Engine provider, mode, supported decision ids, and optional backend status. This read-only diagnostic cannot enable auto mode.",
+                "inputSchema": {"type": "object", "properties": {"project": project_property}, "required": [] if self.active_project else ["project"]},
+            },
             {
                 "name": "list_projects",
                 "description": "List available project configs and namespaces.",

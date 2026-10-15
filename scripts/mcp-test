@@ -69,6 +69,7 @@ def main() -> int:
             "create_skill_proposal",
             "create_skill_evolution_proposal",
             "apply_skill_proposal",
+            "get_decision_status",
         }
         ok = expected_tools.issubset(names)
         print(json.dumps({"initialize": init, "tools": names, "healthcheck": health, "ok": ok}, indent=2))

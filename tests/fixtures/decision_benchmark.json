@@ -1,0 +1,8 @@
+[
+  {"id":"docs-risk","category":"docs-only","decision_id":"patch.risk","features":{"risk_level":"low","surface_count":0,"changed_files_count":1},"expected":15},
+  {"id":"auth-depth","category":"auth","decision_id":"patch.security_review_depth","features":{"risk_level":"high","has_security_surface":true,"docs_only":false},"expected":"extended"},
+  {"id":"dependency-risk","category":"dependency","decision_id":"patch.risk","features":{"risk_level":"high","surface_count":2,"changed_files_count":1},"expected":79},
+  {"id":"migration-docs","category":"migration","decision_id":"patch.documentation_impact","features":{"docs_only":false,"changed_files_count":2,"has_runtime_surface":true},"expected":"required_review"},
+  {"id":"skill-invalid","category":"skill-candidate","decision_id":"skill.candidate_priority","features":{"candidate_score":0.9,"validation_errors":1},"expected":0},
+  {"id":"ambiguous-context","category":"ambiguous","decision_id":"context.primary_sources","features":{"docs_ready":false,"has_patch":false,"has_skills":false,"has_history":false},"expected":"docs"}
+]

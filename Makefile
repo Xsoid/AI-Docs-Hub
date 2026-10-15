@@ -3,7 +3,7 @@ PROJECT ?= example-project
 SCOPE ?= working
 KIND ?= code
 
-.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status logs clean-cache validate-configs
+.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -147,6 +147,12 @@ pre-publish:
 
 review-status:
 	$(PYTHON) scripts/review-status --project "$(PROJECT)" --scope "$(SCOPE)"
+
+decision-status:
+	$(PYTHON) scripts/decision-status --project "$(PROJECT)"
+
+decision-benchmark:
+	$(PYTHON) scripts/decision-benchmark
 
 logs:
 	$(PYTHON) scripts/read-logs --project "$(PROJECT)"

@@ -177,6 +177,7 @@ def _has_git_patch(config: ProjectConfig) -> bool:
 
 def build_project_context(config: ProjectConfig) -> dict[str, Any]:
     from .context_freshness import current_context_identity
+    from .decision_engine import DecisionEngine
 
     instructions = discover_project_instructions(config)
     documentation = _documentation_status(config)
@@ -200,6 +201,19 @@ def build_project_context(config: ProjectConfig) -> dict[str, Any]:
         next_tools.append("search_code")
     if _has_git_patch(config):
         next_tools.extend(["prepare_patch_review", "get_pre_publish_status"])
+    decision_engine = DecisionEngine(config)
+    context_decision = decision_engine.evaluate({
+        "version": 1, "project": config.project, "namespace": config.namespace,
+        "decision_id": "context.primary_sources",
+        "features": {"docs_ready": documentation["status"] == "ready", "has_patch": _has_git_patch(config),
+                     "has_skills": bool(skills), "has_history": False},
+        "fingerprint": identity["fingerprint"],
+    })
+    readiness_decision = decision_engine.evaluate({
+        "version": 1, "project": config.project, "namespace": config.namespace,
+        "decision_id": "context.docs_ready", "features": {"docs_ready": documentation["status"] == "ready"},
+        "fingerprint": identity["fingerprint"],
+    })
     return {
         "schema_version": 1,
         "project": config.project,
@@ -226,6 +240,7 @@ def build_project_context(config: ProjectConfig) -> dict[str, Any]:
             "codebase_search": codebase["available"],
             "patch_review": True,
         },
+        "decision_engine": {"status": decision_engine.status(), "context_primary_source": context_decision, "docs_ready": readiness_decision},
         "recommended_next_tools": next_tools,
     }
 

@@ -28,6 +28,7 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 - `capture_project_context`;
 - `check_project_context`;
 - `get_mcp_usage_summary`;
+- `get_decision_status`;
 - `search_docs`;
 - `read_doc`;
 - `search_decisions`;
@@ -46,6 +47,8 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 - `apply_skill_proposal`.
 
 `get_project_context` возвращает компактный read-only manifest одного namespace: profile, docs index/readiness status, bounded metadata root/nested `AGENTS.md` и `CLAUDE.md`, каталог skills без содержимого, quality/capability status, `context_fingerprint` и deterministic `recommended_next_tools`. Manifest не является dump документации и не preload-ит source files.
+
+`get_decision_status` is a read-only diagnostic for the Local Decision Engine. It returns only provider, mode, supported decision ids and optional backend state. It cannot submit a prompt, enable a provider or enable auto mode. Decision metadata embedded in existing responses is bounded and does not grant a mutation or change a hard gate.
 
 `read_project_instruction` принимает только project-relative path, ранее найденный manifest discovery. Он не превращается в общий filesystem reader: применяются `safe_resolve`, configured/default excludes, project-root containment, secret scan и лимит `250_000` bytes; содержимое выдаётся только on-demand с `content_hash` и `truncated`.
 

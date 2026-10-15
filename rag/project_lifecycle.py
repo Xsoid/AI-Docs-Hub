@@ -346,6 +346,15 @@ def verify_patch(config: str | ProjectConfig, *, scope: str = "working", base: s
         result.update({"id": item["id"], "required": item.get("required", False), "source": item.get("source")})
         checks.append(result)
     failures = [item for item in checks if item.get("status") in {"failed", "error"} and (item.get("required", True) or item["id"] in {"git-diff-check", "git-diff-check-staged", "secret-scan"})]
+    surface = _surface(changed_files, [material.decode("utf-8", errors="replace")])
+    from .decision_engine import DecisionEngine
+    engine = DecisionEngine(project_config)
+    decision_requests = (
+        ("patch.risk", {"risk_level": surface["risk_level"], "surface_count": len(surface["surface"]), "changed_files_count": len(changed_files)}),
+        ("patch.security_review_depth", {"risk_level": surface["risk_level"], "has_security_surface": surface["risk_level"] == "high", "docs_only": surface["docs_only"]}),
+        ("patch.documentation_impact", {"docs_only": surface["docs_only"], "changed_files_count": len(changed_files), "has_runtime_surface": not surface["docs_only"]}),
+    )
+    decisions = {decision_id: engine.evaluate({"version": 1, "project": project_config.project, "namespace": project_config.namespace, "decision_id": decision_id, "features": features, "fingerprint": fingerprint["fingerprint"], "scope": scope, "base": base}) for decision_id, features in decision_requests}
     result = {
         "schema_version": SCHEMA_VERSION,
         "project": project_config.project,
@@ -354,7 +363,8 @@ def verify_patch(config: str | ProjectConfig, *, scope: str = "working", base: s
         "base": base,
         "fingerprint": fingerprint["fingerprint"],
         "changed_files": changed_files,
-        "surface": _surface(changed_files, [material.decode("utf-8", errors="replace")]),
+        "surface": surface,
+        "decision_engine": {"mode": "shadow", "decisions": decisions, "effect": "advisory metadata only; lifecycle gate is unchanged"},
         "checks": checks,
         "status": "failed" if failures else "passed",
         "required_failure_count": len(failures),

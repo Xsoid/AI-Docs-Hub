@@ -1,0 +1,14 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+import argparse
+import json
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from rag.config import get_project_config
+from rag.decision_engine import decision_status
+
+parser = argparse.ArgumentParser(description="Show the local Decision Engine status")
+parser.add_argument("--project", required=True)
+args = parser.parse_args()
+print(json.dumps(decision_status(get_project_config(args.project)), ensure_ascii=False, indent=2))

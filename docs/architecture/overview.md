@@ -16,6 +16,7 @@ AI Docs Hub - это локальная multi-stack система. У кажд�
 - MkDocs adapter: read-only structural discovery для проектов с `mkdocs.yml` или `mkdocs.yaml`; adapter не запускает MkDocs plugins, hooks, Python code или Markdown extensions;
 - Lite JSON/BM25 RAG: локальная индексация и поиск по разрешенной документации проектов, хранение в `storage/index`;
 - Skill Intelligence: локальный deterministic audit docs, `AGENTS.md` и `.agents/skills/*/SKILL.md`; audit/proposals хранятся в ignored `storage/skill-intelligence/<project>/`;
+- Local Decision Engine: typed local rules over already-computed metadata; decisions are shadow/advisory only and never replace hard gates;
 - MCP stdio bridge: `mcp/server.py` отдает project-scoped tools для Codex и других MCP clients через JSON-RPC stdio;
 - optional Codebase Memory sidecar: отдельный MCP/CLI строит project-scoped SQLite graph исходного кода для symbols, calls, dependencies и impact analysis; cache хранится в ignored `storage/codebase-memory`;
 - local runtime: `scripts/hub-dev` супервизирует docs-site, watcher и local fix action server в foreground; macOS `launchd` может запускать тот же supervisor persistently;
@@ -128,6 +129,14 @@ Apply использует только полное reviewed content, объя�
 ### Project Lifecycle / Quality Gate
 
 Project Lifecycle использует existing project config, secret/path safety, Skill Intelligence и Codebase Memory, но не создает параллельные discovery или review mechanisms. Его local-only слой строит quality profile, deterministic verification, patch fingerprint и gate state. Semantic code/security review выполняется явным Codex workflow, а MCP хранит только structured result для текущего fingerprint. Reports живут в ignored storage/project-lifecycle/<project>/; source snippets и absolute external paths не сохраняются.
+
+### Local Decision Engine
+
+`rag/decision_engine.py` contains one small typed registry for boolean, choice and score decisions. The shipped decisions consume only bounded metadata from Project Lifecycle, Context Manifest and Skill Intelligence. The default is enabled `rules` provider in `shadow` mode. Shadow records a local result but cannot change routing, gate state, writes or tool permissions. Advisory is a bounded recommendation. Auto is not supported by shipped decisions and remains disabled.
+
+The engine reuses `patch_fingerprint`, lifecycle surface metadata, `current_context_identity` and existing Skill Intelligence scores. It does not create a second classifier, fingerprint system or project configuration framework. Cache and metrics are project-scoped under ignored `storage/decision-engine/<project>/`; cache keys include project, namespace, schema/policy/provider identity, feature hash, fingerprint and scope. Stored files contain no source text, diff, path, prompt or model output.
+
+The optional `local` provider is a disabled-by-default HTTP loopback adapter. It uses no proxy, accepts only `127.0.0.1` or `::1`, rejects redirects and validates bounded JSON responses. Hub does not download, install or start a model backend.
 
 ### Watcher-Ы
 
