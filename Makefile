@@ -3,7 +3,7 @@ PROJECT ?= example-project
 SCOPE ?= working
 KIND ?= code
 
-.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs
+.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index claude-mcp-status claude-mcp-install claude-mcp-install-hub healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -106,6 +106,15 @@ codebase-memory-status:
 
 codebase-memory-index:
 	$(PYTHON) scripts/codebase-memory index --project "$(PROJECT)" --mode moderate
+
+claude-mcp-status:
+	$(PYTHON) scripts/claude-mcp status --project "$(PROJECT)"
+
+claude-mcp-install:
+	$(PYTHON) scripts/claude-mcp configure --project "$(PROJECT)" --write
+
+claude-mcp-install-hub:
+	$(PYTHON) scripts/claude-mcp configure --hub --write
 
 healthcheck:
 	$(PYTHON) scripts/healthcheck

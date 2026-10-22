@@ -17,7 +17,7 @@ AI Docs Hub - это локальная multi-stack система. У кажд�
 - Lite JSON/BM25 RAG: локальная индексация и поиск по разрешенной документации проектов, хранение в `storage/index`;
 - Skill Intelligence: локальный deterministic audit docs, `AGENTS.md` и `.agents/skills/*/SKILL.md`; audit/proposals хранятся в ignored `storage/skill-intelligence/<project>/`;
 - Local Decision Engine: typed local rules over already-computed metadata; decisions are shadow/advisory only and never replace hard gates;
-- MCP stdio bridge: `mcp/server.py` отдает project-scoped tools для Codex и других MCP clients через JSON-RPC stdio;
+- MCP stdio bridge: `mcp/server.py` отдает project-scoped tools для Codex, Claude Code и других MCP clients через JSON-RPC stdio; регистрацию для Claude Code выполняет `scripts/claude-mcp`;
 - optional Codebase Memory sidecar: отдельный MCP/CLI строит project-scoped SQLite graph исходного кода для symbols, calls, dependencies и impact analysis; cache хранится в ignored `storage/codebase-memory`;
 - local runtime: `scripts/hub-dev` супервизирует docs-site, watcher и local fix action server в foreground; macOS `launchd` может запускать тот же supervisor persistently;
 - macOS menu bar app: optional Swift/AppKit wrapper, который собирается через `scripts/hub-menubar`; это operational convenience, а не source of truth;
@@ -150,7 +150,7 @@ Watcher работает в foreground-режиме через `make watch`, `ma
 
 На macOS optional persistent-режим строится через `launchd`: `scripts/hub-launchd` устанавливает user LaunchAgent `local.ai-docs-hub.runtime`, который запускает тот же `scripts/hub-dev`.
 
-Persistent runtime отделен от глобального Codex config; MCP-подключения настраиваются отдельной точечной правкой `~/.codex/config.toml`.
+Persistent runtime отделен от глобальных configs агентских клиентов. Claude Code MCP-подключения настраиваются через `scripts/claude-mcp` (`docs/operations/claude-code.md`); Codex MCP-подключения настраиваются отдельной точечной правкой `~/.codex/config.toml`.
 
 ### Fix Actions
 

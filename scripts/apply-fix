@@ -289,7 +289,7 @@ def action_codebase_memory_index(project: str | None) -> dict[str, Any]:
     require_ok(status_result, f"failed to refresh Codebase Memory status for {project}")
     return {
         "status": "ok",
-        "message": f"connected Codebase Memory for {project}; restart Codex to load project-scoped MCP tools",
+        "message": f"connected Codebase Memory for {project}; restart Codex to load project-scoped MCP tools; for Claude Code run make claude-mcp-install PROJECT={project}",
         "project": project,
         "created_ignore": created_ignore,
         "ignore_path": str(ignore_path),

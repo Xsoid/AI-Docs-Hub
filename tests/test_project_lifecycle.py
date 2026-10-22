@@ -18,6 +18,7 @@ from rag.project_lifecycle import (
     record_review,
     prepare_patch_review,
     verify_patch,
+    main as lifecycle_main,
 )
 
 
@@ -105,6 +106,23 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertNotEqual(stale["fingerprint"], fingerprint)
         self.assertEqual(stale["state"], "VERIFYING")
         self.assertFalse(stale["publishable"])
+
+    def test_cli_record_review_requires_current_fingerprint(self) -> None:
+        (self.root / "app.py").write_text("print('changed')\n", encoding="utf-8")
+        findings = Path(self.temp_dir.name) / "findings.json"
+        findings.write_text(json.dumps([{"severity": "low", "path": "app.py", "line": 1, "evidence": "synthetic", "extra": "dropped"}]), encoding="utf-8")
+        with patch("rag.project_lifecycle.LIFECYCLE_STORAGE_DIR", self.storage), patch("rag.project_lifecycle.get_project_config", return_value=self.config), patch("builtins.print"):
+            fingerprint = verify_patch(self.config)["fingerprint"]
+            stale = lifecycle_main(["record-review", "--project", "synthetic-lifecycle", "--kind", "code", "--fingerprint", "0" * 64, "--status", "passed"])
+            missing = lifecycle_main(["record-review", "--project", "synthetic-lifecycle", "--kind", "code"])
+            recorded = lifecycle_main(["record-review", "--project", "synthetic-lifecycle", "--kind", "code", "--fingerprint", fingerprint, "--status", "passed", "--findings-file", str(findings), "--reviewer", "claude-code"])
+            gate = pre_publish_status(self.config)
+
+        self.assertEqual((stale, missing, recorded), (1, 1, 0))
+        record = json.loads((self.storage / "synthetic-lifecycle" / "reviews" / fingerprint / "code-review.json").read_text(encoding="utf-8"))
+        self.assertEqual(record["reviewer"], "claude-code")
+        self.assertNotIn("extra", record["findings"][0])
+        self.assertEqual(gate["state"], "SECURITY_REVIEW_REQUIRED")
 
     def test_secret_path_is_hard_block_and_profile_is_metadata_only(self) -> None:
         (self.root / ".env").write_text("TOKEN=synthetic-secret-value\n", encoding="utf-8")

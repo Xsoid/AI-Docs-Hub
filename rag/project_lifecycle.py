@@ -395,7 +395,7 @@ def _agents_block(project: str) -> str:
         "",
         "- Перед commit, push или PR сначала выполнить Hub pre-publish gate для текущего patch fingerprint.",
         "- Code review и security review относятся к точной версии diff; после изменения patch они становятся stale и повторяются.",
-        "- Hub выполняет deterministic verification и хранит local-only metadata; semantic review запускается явно через Codex.",
+        "- Hub выполняет deterministic verification и хранит local-only metadata; semantic review запускается явно агентским клиентом (Codex или Claude Code).",
         "- Не публиковать patch при failed verification, stale/incomplete review или unresolved blocking finding.",
         f"- Для проекта {project} использовать project-scoped Hub tools и не смешивать контекст других проектов.",
         AGENTS_END,
@@ -453,7 +453,7 @@ def prepare_patch_review(config: str | ProjectConfig, *, kind: str, scope: str =
         "base": base,
         "fingerprint": fingerprint["fingerprint"],
         "changed_files": changed_files,
-        "context_budget": {"max_changed_files": 80, "max_doc_results": 8, "max_snippet_chars": 0, "policy": "diff-first; metadata only until Codex explicitly reads scoped sources"},
+        "context_budget": {"max_changed_files": 80, "max_doc_results": 8, "max_snippet_chars": 0, "policy": "diff-first; metadata only until the reviewing agent explicitly reads scoped sources"},
         "quality_profile": {"languages": profile["languages"], "verification_check_ids": [item["id"] for item in profile["verification"]["checks"]]},
         "security_scope": _surface(changed_files, [material.decode("utf-8", errors="replace")]) if kind == "security" else None,
         "review_contract": "Review current fingerprint only; report findings with path, line, evidence, impact, remediation and confidence.",
@@ -554,6 +554,16 @@ def lifecycle_status(config: str | ProjectConfig, *, scope: str = "working", bas
     return {"project": project_config.project, "namespace": project_config.namespace, "init": init, "quality_profile": {"status": "available" if profile else "missing", "generated_at": profile.get("generated_at") if profile else None}, "gate": gate}
 
 
+def _load_findings(source: str | None) -> list[dict[str, Any]]:
+    if not source:
+        return []
+    raw = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+    findings = json.loads(raw)
+    if not isinstance(findings, list) or not all(isinstance(item, dict) for item in findings):
+        raise LifecycleError("findings must be a JSON array of objects")
+    return findings
+
+
 def main(argv: list[str] | None = None, forced_command: str | None = None) -> int:
     import argparse
 
@@ -561,7 +571,7 @@ def main(argv: list[str] | None = None, forced_command: str | None = None) -> in
     if forced_command:
         command = forced_command
     else:
-        parser.add_argument("command", choices=["onboard", "quality-profile", "verify-patch", "prepare-review", "pre-publish", "review-status"])
+        parser.add_argument("command", choices=["onboard", "quality-profile", "verify-patch", "prepare-review", "record-review", "pre-publish", "review-status"])
         command = None
     parser.add_argument("--project", required=True)
     parser.add_argument("--scope", choices=["working", "staged", "range", "branch"], default="working")
@@ -570,6 +580,11 @@ def main(argv: list[str] | None = None, forced_command: str | None = None) -> in
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--fingerprint", help="record-review: fingerprint returned by prepare-review")
+    parser.add_argument("--status", choices=["passed", "failed", "incomplete"], help="record-review: review result")
+    parser.add_argument("--findings-file", help="record-review: JSON array of findings; '-' reads stdin")
+    parser.add_argument("--summary", default="")
+    parser.add_argument("--reviewer", default="agent")
     args = parser.parse_args(argv)
     command = command or args.command
     try:
@@ -581,6 +596,11 @@ def main(argv: list[str] | None = None, forced_command: str | None = None) -> in
             payload = verify_patch(args.project, scope=args.scope, base=args.base, timeout=args.timeout)
         elif command == "prepare-review":
             payload = prepare_patch_review(args.project, kind=args.kind, scope=args.scope, base=args.base)
+        elif command == "record-review":
+            if not args.fingerprint or not args.status:
+                raise LifecycleError("record-review requires --fingerprint and --status")
+            findings = _load_findings(args.findings_file)
+            payload = record_review(args.project, kind=args.kind, scope=args.scope, base=args.base, fingerprint=args.fingerprint, status=args.status, findings=findings, reviewer=args.reviewer, summary=args.summary)
         else:
             payload = lifecycle_status(args.project, scope=args.scope, base=args.base)
             if command == "pre-publish":

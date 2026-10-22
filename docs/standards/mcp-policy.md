@@ -66,13 +66,15 @@ Skill Intelligence read tools project-scoped и не переключают name
 
 ## Project Lifecycle Tools
 
-MCP project lifecycle tools не запускают LLM. get_quality_profile и verify_patch выполняют только deterministic discovery/checks; prepare_patch_review возвращает diff-first metadata; record_code_review и record_security_review принимают explicit structured results только при совпадении текущего fingerprint; get_pre_publish_status читает gate state; onboard_project требует confirm=true и пишет только managed block в external project AGENTS.md. Reports хранятся в ignored storage/project-lifecycle/<project>/.
+MCP project lifecycle tools не запускают LLM. get_quality_profile и verify_patch выполняют только deterministic discovery/checks; prepare_patch_review возвращает diff-first metadata; record_code_review и record_security_review принимают explicit structured results только при совпадении текущего fingerprint; get_pre_publish_status читает gate state; onboard_project требует confirm=true и пишет только managed block в external project AGENTS.md. Без MCP review record пишет CLI `scripts/project-lifecycle record-review` с той же проверкой fingerprint. Reports хранятся в ignored storage/project-lifecycle/<project>/.
 
 Security review является отдельным record и не является alias code review. Допустимая положительная формулировка — no findings in reviewed scope; absolute security guarantee запрещена.
 
 ## Config Edits
 
 Global `~/.codex/config.toml` можно редактировать только когда задача требует Codex/MCP setup. Правки должны быть scoped и явно описаны пользователю.
+
+Claude Code MCP registration в `~/.claude.json` меняется только через `scripts/claude-mcp`: dry-run по умолчанию, запись только local-scope `mcpServers` выбранного project dir и только Hub-managed entries. Процедура и правила записи описаны в `docs/operations/claude-code.md`.
 
 Project files считаются read-only, кроме explicit scaffold и Skill Intelligence proposal workflows с `confirm=true`.
 
@@ -82,4 +84,4 @@ Project files считаются read-only, кроме explicit scaffold и Skil
 
 Codebase Memory работает как отдельный project-scoped MCP server через `mcp/codebase_memory_proxy.py --project project-name`; он не расширяет список tools основного `mcp/server.py`.
 
-Proxy публикует только read-oriented tools, закрепляет каждый call за project из `--project` и блокирует mutating tools, cross-project calls и repository persistence. MCP entry создается отдельно как `codebase_<project>`, а после изменения `~/.codex/config.toml` Codex необходимо перезапустить.
+Proxy публикует только read-oriented tools, закрепляет каждый call за project из `--project` и блокирует mutating tools, cross-project calls и repository persistence. MCP entry создается отдельно как `codebase_<project>`, а после изменения `~/.codex/config.toml` Codex необходимо перезапустить. Для Claude Code тот же entry регистрирует `scripts/claude-mcp`.

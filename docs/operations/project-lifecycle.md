@@ -1,6 +1,6 @@
 # Project Lifecycle / Quality Gate
 
-AI Docs Hub предоставляет локальный lifecycle для patch подключенного проекта. Hub отвечает за metadata, deterministic checks, fingerprint и gate state. Semantic code review и security review выполняются только явным Codex workflow и записываются обратно через MCP.
+AI Docs Hub предоставляет локальный lifecycle для patch подключенного проекта. Hub отвечает за metadata, deterministic checks, fingerprint и gate state. Semantic code review и security review выполняются только явным workflow агентского клиента (Codex или Claude Code) и записываются обратно через MCP или CLI `record-review`.
 
 ## Границы и переиспользование
 
@@ -65,7 +65,7 @@ Verification всегда выполняет git diff --check и secret scan. О
 
 Hub отдает changed file metadata, quality check ids, adaptive security surface и явные context budgets. Полный репозиторий и source snippets не перечитываются автоматически. Codebase Memory и Docs MCP остаются отдельными scoped источниками для blast radius и contracts.
 
-Code review и security review записываются раздельно MCP tools record_code_review и record_security_review. Каждый finding содержит severity, confidence, path/line, evidence, impact и remediation; security finding дополнительно фиксирует prerequisite, asset и validation. Security review может сказать только no findings in reviewed scope, но не абсолютную безопасность.
+Code review и security review записываются раздельно MCP tools record_code_review и record_security_review. Клиент без MCP использует `scripts/project-lifecycle record-review --kind code|security` с fingerprint из `prepare-review`; CLI применяет ту же проверку fingerprint и тот же allowlist полей finding. Подключение Claude Code описано в `docs/operations/claude-code.md`. Каждый finding содержит severity, confidence, path/line, evidence, impact и remediation; security finding дополнительно фиксирует prerequisite, asset и validation. Security review может сказать только no findings in reviewed scope, но не абсолютную безопасность.
 
 Skills содержат небольшие tracked synthetic eval catalogs в `.agents/skills/*/evals/catalog.json`. Они покрывают безопасные docs-only изменения, compatibility regression, authz bypass, path traversal, secret logging и unavailable dependency scanners. Каталоги проверяются тестами как fixtures для явного Codex review; они не запускают LLM и не обещают доказательство произвольной безопасности проекта.
 

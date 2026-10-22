@@ -68,6 +68,8 @@ Allowlisted action `codebase-memory.index` выполняет весь onboardin
 
 Routing rules направляют docs/ADR/runbooks в AI Docs Hub, а symbols/calls/dependencies/routes/blast radius — в Codebase Memory. `rg` и source reads остаются fallback при неполном graph coverage. После первого подключения или изменения MCP config необходимо перезапустить Codex: уже открытая сессия не загружает новый MCP server динамически.
 
+Action `codebase-memory.index` настраивает только Codex. Для Claude Code выполните `make claude-mcp-install PROJECT=name`: команда добавит `codebase_<project>`, если binary установлен и graph построен. Признак `fully_connected` отражает только Codex registration.
+
 ## Security Gate
 
 Перед индексированием в root подключенного проекта должен существовать `.cbmignore`. Wrapper проверяет обязательные exclusions для `.env`, secret/token/password/credential paths, cookies, sessions, dumps и private keys.

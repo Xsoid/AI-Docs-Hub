@@ -8,7 +8,7 @@ AI Docs Hub stores local infrastructure, templates, generated artifacts, indexes
 - Keep connected-project namespaces separate. Treat connected projects as read-only unless the user explicitly authorizes a write.
 - Do not index, commit, quote, or copy `.env`, keys, credentials, tokens, cookies, sessions, dumps, secret-looking files, or project-derived content into tracked Hub files.
 - Keep `configs/projects/`, `storage/`, generated pages, and `llms*.txt` local and ignored. Docs-as-code is the source; indexes and generated context are derived artifacts.
-- A scoped edit to `~/.codex/config.toml` is permitted only when Codex or MCP setup requires it. Report that edit.
+- A scoped edit to `~/.codex/config.toml` is permitted only when Codex or MCP setup requires it. Change Claude Code MCP registration in `~/.claude.json` only through `scripts/claude-mcp`. Report each edit.
 
 ## Documentation Duty
 

@@ -149,7 +149,7 @@ Generated artifacts не редактируются вручную.
 | make pre-publish PROJECT=name SCOPE=staged | Проверить state machine и publishable status текущего fingerprint. |
 | make review-status PROJECT=name | Прочитать lifecycle status без запуска semantic review. |
 
-Semantic review records пишутся через MCP tools record_code_review и record_security_review. Старый fingerprint не переносится после изменения patch. Reports external projects остаются в ignored storage/project-lifecycle.
+Semantic review records пишутся через MCP tools record_code_review и record_security_review. Без MCP используйте `python3.11 scripts/project-lifecycle record-review --project name --kind code|security --fingerprint FP --status passed|failed|incomplete [--findings-file findings.json] [--reviewer name]`; findings file содержит JSON array объектов. Старый fingerprint не переносится после изменения patch. Reports external projects остаются в ignored storage/project-lifecycle.
 
 ## Local Decision Engine
 
@@ -169,7 +169,19 @@ The default provider is offline rules in shadow mode. `get_decision_status` is t
 | `make codebase-memory-status PROJECT=name` | Проверить binary, graph, project-scoped MCP config, managed agent rules и `fully_connected`. |
 | `python3.11 scripts/apply-fix --action codebase-memory.index --project name` | Идемпотентно подготовить `.cbmignore`, построить graph, настроить отдельный MCP server и routing rules. |
 
-После первого onboarding или изменения MCP config перезапустите Codex. Полная модель использования и список read-only tools описаны в `docs/operations/codebase-memory.md`.
+После первого onboarding или изменения MCP config перезапустите Codex. Для Claude Code выполните `make claude-mcp-install PROJECT=name`. Полная модель использования и список read-only tools описаны в `docs/operations/codebase-memory.md`.
+
+## Claude Code
+
+| Команда | Назначение |
+| --- | --- |
+| `make claude-mcp-status PROJECT=name` | Проверить local-scope MCP registration проекта в `~/.claude.json`. |
+| `make claude-mcp-install PROJECT=name` | Зарегистрировать `<project>_docs` и, при наличии binary и graph, `codebase_<project>`. |
+| `make claude-mcp-install-hub` | Зарегистрировать unscoped `local_ai_docs_hub` для checkout Hub. |
+| `python3.11 scripts/claude-mcp configure --all` | Показать dry-run для всех подключенных проектов; `--write` применяет. |
+| `python3.11 scripts/claude-mcp remove --project name --write` | Удалить только Hub-managed entries проекта. |
+
+После записи с `restart_required=true` перезапустите Claude Code. Правила записи описаны в `docs/operations/claude-code.md`.
 
 ## Cleanup
 

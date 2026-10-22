@@ -174,7 +174,7 @@ def agent_rules_block(project: str) -> str:
         "- Обычные `rg` и чтение файлов остаются fallback, если graph coverage неполный или нужен source of truth.\n"
         "- `manage_adr`, cross-project wildcard, `delete_project`, `ingest_traces` и repository persistence запрещены.\n"
         "- Если документация и code graph расходятся, проверить исходный код и явно сообщить о конфликте с путями.\n"
-        "- После первого подключения или изменения MCP-конфигурации перезапустить Codex, чтобы новая сессия загрузила server tools.\n"
+        "- После первого подключения или изменения MCP-конфигурации перезапустить агентский клиент (Codex или Claude Code), чтобы новая сессия загрузила server tools.\n"
         f"{AGENT_RULES_END}\n"
     )
 
