@@ -16,6 +16,15 @@ from .security import is_excluded, normalize_rel, safe_resolve, scan_text_for_se
 
 
 LIFECYCLE_STORAGE_DIR = HUB_ROOT / "storage" / "project-lifecycle"
+# Design tokens (UI colors, spacing) share the word "token" with credentials.
+DESIGN_TOKEN_NAME_RE = re.compile(
+    r"(?<![a-z0-9])(?:"
+    r"(?:design|primitive|semantic|component)[-_]tokens?"
+    r"|tokens?[-_](?:architecture|validator)"
+    r"|(?:validate|generate|embed|to)[-_]tokens?(?![a-z])"
+    r")"
+)
+DESIGN_TOKEN_SUFFIXES = (".md", ".py", ".cjs", ".mjs", ".js", ".ts", ".json")
 MAX_COMMAND_OUTPUT = 120_000
 DEFAULT_TIMEOUT = 300.0
 AGENTS_BEGIN = "<!-- BEGIN AI DOCS HUB PROJECT LIFECYCLE -->"
@@ -250,6 +259,27 @@ def quality_profile(config: str | ProjectConfig, *, persist: bool = True) -> dic
         for check_id, command, required in (("tests", ["cargo", "test"], True), ("build", ["cargo", "build"], False)):
             if not any(item["id"] == check_id for item in checks):
                 checks.append({"id": check_id, "command": command, "required": required, "source": "Cargo.toml"})
+    nested_manifests: list[str] = []
+    if "Cargo.toml" not in files:
+        # A Rust crate may live one level below the root, for example core/Cargo.toml.
+        for manifest in sorted(root.glob("*/Cargo.toml")):
+            if manifest.parent.name.startswith(".") or manifest.parent.name in {"target", "node_modules", "vendor"}:
+                continue
+            rel_manifest = manifest.relative_to(root).as_posix()
+            nested_manifests.append(rel_manifest)
+            if "rust" not in languages:
+                languages.append("rust")
+            managers.append("cargo")
+            check_id = f"tests:{manifest.parent.name}"
+            checks.append({"id": check_id, "command": ["cargo", "test", "--manifest-path", rel_manifest], "required": True, "source": rel_manifest})
+
+    # Projects without a task runner often keep test entrypoints as scripts/test-*.sh.
+    scripts_dir = root / "scripts"
+    if scripts_dir.is_dir():
+        for script in sorted(scripts_dir.glob("test-*.sh")):
+            if script.is_file() and not script.is_symlink():
+                rel_script = script.relative_to(root).as_posix()
+                checks.append({"id": f"script:{script.stem}", "command": ["bash", rel_script], "required": True, "source": rel_script})
 
     profile = {
         "schema_version": SCHEMA_VERSION,
@@ -258,7 +288,7 @@ def quality_profile(config: str | ProjectConfig, *, persist: bool = True) -> dic
         "generated_at": utc_now(),
         "languages": languages,
         "package_managers": sorted(set(managers)),
-        "manifests": sorted(name for name in ("package.json", "composer.json", "pyproject.toml", "Cargo.toml", "Makefile") if (root / name).is_file()),
+        "manifests": sorted([name for name in ("package.json", "composer.json", "pyproject.toml", "Cargo.toml", "Makefile") if (root / name).is_file()] + nested_manifests),
         "ci_workflows": sorted(path.relative_to(root).as_posix() for path in (root / ".github" / "workflows").glob("*") if path.is_file()) if (root / ".github" / "workflows").is_dir() else [],
         "verification": {"checks": checks},
         "security_surface": {"discovery": "changed-files-and-content", "dependency_scanners": dependency_scanners},
@@ -317,15 +347,38 @@ def _public_metadata_paths(config: ProjectConfig) -> set[str]:
     return {normalize_rel(value) for value in values if isinstance(value, str)}
 
 
+def _is_design_token_path(path: str) -> bool:
+    lowered = normalize_rel(path).lower()
+    name = lowered.rsplit("/", 1)[-1]
+    if not name.endswith(DESIGN_TOKEN_SUFFIXES):
+        return False
+    if any(word in lowered for word in (".env", "secret", "password", "credential", "cookie", "session", ".key", ".pem")):
+        return False
+    return bool(DESIGN_TOKEN_NAME_RE.search(name))
+
+
 def _secret_check(config: ProjectConfig, changed_files: list[str], diff_text: str) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
     public_metadata_paths = _public_metadata_paths(config)
+    root = _git_root(config.root)
     for path in changed_files:
         if (
             is_excluded(path, [])
             and normalize_rel(path) not in public_metadata_paths
             and any(token in path.lower() for token in (".env", "secret", "token", "password", "credential", "cookie", "session", ".key", ".pem"))
         ):
+            # A design-token file passes the name check only when its own
+            # content passes the content scan; excluded files are not in the diff.
+            if _is_design_token_path(path):
+                try:
+                    target = safe_resolve(root, path)
+                    text = target.read_text(encoding="utf-8", errors="replace") if target.is_file() else ""
+                except (OSError, ValueError):
+                    text = None
+                if text is not None:
+                    content_findings = scan_text_for_secrets(text)
+                    findings.extend({"kind": str(item.get("kind", "secret_pattern")), "path": path, "line": int(item.get("line", 0))} for item in content_findings)
+                    continue
             findings.append({"kind": "secret_looking_path", "path": path})
     for finding in scan_text_for_secrets(diff_text):
         findings.append({"kind": str(finding.get("kind", "secret_pattern")), "line": int(finding.get("line", 0))})

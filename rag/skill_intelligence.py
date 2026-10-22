@@ -129,16 +129,23 @@ def _frontmatter(text: str) -> dict[str, str]:
     return values
 
 
-def _relative_references(text: str) -> list[str]:
-    references: list[str] = []
+def _relative_references(text: str) -> list[tuple[str, bool]]:
+    """Return (reference, is_inline_code) pairs."""
+    references: list[tuple[str, bool]] = []
     for match in REFERENCE_RE.finditer(text):
         reference = (match.group(1) or match.group(2) or "").split("#", 1)[0].strip()
         if not reference or re.match(r"^[a-z]+://", reference, flags=re.IGNORECASE):
             continue
+        # Inline code such as `python scripts/search.py` is a command, and
+        # `references/{name}.md` or `<slug>/MASTER.md` is a path template.
+        if match.group(2) and re.search(r"\s", reference):
+            continue
+        if re.search(r"[{}<>]", reference):
+            continue
         if reference.startswith(("/", "~")) or re.match(r"^[A-Za-z]:[\\/]", reference):
-            references.append(reference)
+            references.append((reference, bool(match.group(2))))
         elif "." in PurePosixPath(reference).name:
-            references.append(reference)
+            references.append((reference, bool(match.group(2))))
     return references
 
 
@@ -178,7 +185,7 @@ def _check_skill_references(root: Path, rel_path: str, text: str) -> list[dict[s
             }
         )
     parent = PurePosixPath(rel_path).parent
-    for reference in _relative_references(text):
+    for reference, is_inline_code in _relative_references(text):
         if reference.startswith(("/", "~")) or re.match(r"^[A-Za-z]:[\\/]", reference):
             issues.append(
                 {
@@ -203,6 +210,13 @@ def _check_skill_references(root: Path, rel_path: str, text: str) -> list[dict[s
                 }
             )
             continue
+        # Agents run from the project root, so an inline-code path may also be
+        # project-relative. Markdown links resolve from the skill file only.
+        if not target.exists() and is_inline_code:
+            try:
+                target = safe_resolve(root, reference)
+            except ValueError:
+                pass
         if not target.exists():
             issues.append(
                 {
@@ -262,7 +276,7 @@ def get_skill_inventory(project: str | ProjectConfig) -> dict[str, Any]:
             continue
         frontmatter = _frontmatter(text)
         headings = _headings(text)
-        references = _relative_references(text)
+        references = [reference for reference, _ in _relative_references(text)]
         skills.append(
             {
                 "name": frontmatter.get("name", ""),
@@ -612,8 +626,10 @@ def _skill_diagnostics(
         for canonical_segment in canonical_segments:
             skill_path = str(skill_segment["source_path"])
             canonical_path = str(canonical_segment["source_path"])
+            # A link to the canonical doc is the remediation, so path words in
+            # references must not count as overlap.
             similarity, shared_tokens = _workflow_similarity(
-                str(skill_segment["text"]),
+                REFERENCE_RE.sub(" ", str(skill_segment["text"])),
                 str(canonical_segment["text"]),
             )
             if shared_tokens < MIN_SHARED_WORKFLOW_TOKENS or similarity < 0.72:

@@ -94,7 +94,7 @@ Generated artifacts не редактируются вручную.
 
 | Команда | Назначение |
 | --- | --- |
-| `make lint PROJECT=name` | Проверить документацию и skill architecture: ссылки, пустые docs, дубликаты, readiness и skill validation. |
+| `make lint PROJECT=name` | Проверить документацию и skill architecture: ссылки, пустые docs, дубликаты, readiness и skill validation. Link и orphan checks смотрят только Markdown; orphan учитывает wiki-links и относительные Markdown-ссылки. |
 | `make scaffold-docs PROJECT=name` | Dry-run плана starter docs для проекта. |
 | `make scaffold-docs-write PROJECT=name` | Явно создать missing starter docs в подключенном проекте. |
 | `make skill-audit PROJECT=name` | Выполнить read-only Skill Architecture audit с локальным JSON report в ignored storage. |

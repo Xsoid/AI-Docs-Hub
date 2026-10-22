@@ -39,7 +39,11 @@ SECRET_PATTERNS = [
     (
         "assignment_secret",
         re.compile(
-            r"(?i)\b(api[_-]?key|secret|token|password|passwd|credential|cookie|session)\b\s*[:=]\s*['\"]?[^\s'\"]{8,}"
+            # Code is not a value: a call (`password: z.string().min(8)`), or a
+            # digit-free identifier that closes a call (`api_key=api_key)`,
+            # `session: URLSession) -> Void`).
+            r"(?i)\b(api[_-]?key|secret|token|password|passwd|credential|cookie|session)\b\s*[:=]\s*"
+            r"(?![A-Za-z_$][\w$.]*\(|[A-Za-z_]+\))['\"]?[^\s'\"]{8,}"
         ),
     ),
 ]

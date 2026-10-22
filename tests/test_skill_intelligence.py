@@ -177,6 +177,60 @@ class SkillIntelligenceIsolationTests(unittest.TestCase):
         self.assertIn("router_skill", issue_types)
         self.assertEqual(report["status"], "blocked")
 
+    def test_validator_ignores_commands_and_path_templates_as_references(self) -> None:
+        skill_dir = self.project_root / ".agents" / "skills" / "deploy"
+        (skill_dir / "scripts").mkdir()
+        (skill_dir / "scripts" / "search.py").write_text("print('ok')\n", encoding="utf-8")
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: deploy\ndescription: Synthetic references.\n---\n"
+            "# Deploy\n\nRun `python3 scripts/search.py`, read `scripts/search.py`, "
+            "open `references/{subcommand}.md` and `pages/<slug>/MASTER.md`, then `missing.md`.\n",
+            encoding="utf-8",
+        )
+        with patch("rag.skill_intelligence.log_operation"):
+            report = validate_skill_architecture(self.config)
+
+        references = [
+            issue["reference"]
+            for issue in report["issues"]
+            if issue["type"] == "broken_reference" and issue["source_path"].endswith("deploy/SKILL.md")
+        ]
+        self.assertEqual(references, ["missing.md"])
+
+    def test_inline_code_paths_may_be_project_relative_but_links_may_not(self) -> None:
+        skill_dir = self.project_root / ".agents" / "skills" / "deploy"
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: deploy\ndescription: Synthetic references.\n---\n"
+            "# Deploy\n\nRead `docs/workflow.md`. Do not use [workflow](docs/workflow.md).\n",
+            encoding="utf-8",
+        )
+        with patch("rag.skill_intelligence.log_operation"):
+            report = validate_skill_architecture(self.config)
+
+        broken = [
+            issue["reference"]
+            for issue in report["issues"]
+            if issue["type"] == "broken_reference" and issue["source_path"].endswith("deploy/SKILL.md")
+        ]
+        self.assertEqual(broken, ["docs/workflow.md"])
+
+    def test_link_to_canonical_doc_is_not_an_ownership_conflict(self) -> None:
+        (self.project_root / "docs" / "visual-language.md").write_text(
+            "# Product visual language\n\nBrand tokens.\n",
+            encoding="utf-8",
+        )
+        skill_dir = self.project_root / ".agents" / "skills" / "deploy"
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: deploy\ndescription: Synthetic references.\n---\n"
+            "# Source\n\nCanonical: `docs/visual-language.md` and `docs/product-brand-tokens.json`.\n",
+            encoding="utf-8",
+        )
+        with patch("rag.skill_intelligence.log_operation"):
+            report = validate_skill_architecture(self.config)
+
+        conflicts = [i for i in report["issues"] if i["type"] == "skill_docs_ownership_conflict"]
+        self.assertEqual(conflicts, [])
+
     def test_validator_detects_different_headings_with_the_same_workflow(self) -> None:
         (self.project_root / "docs" / "release-check.md").write_text(
             "# Release Readiness\n\n"

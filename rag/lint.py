@@ -1,14 +1,41 @@
 from __future__ import annotations
 
+import posixpath
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .config import ProjectConfig, get_project_config
 from .docs_quality import documentation_readiness
 from .lite import collect_project_files, load_index
 from .skill_intelligence import validate_skill_architecture
-from .wiki_links import extract_wiki_links
+from .wiki_links import extract_wiki_links, strip_markdown_code
+
+MARKDOWN_SUFFIXES = (".md", ".mdx")
+MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[[^\]]*\]\(<?([^)\s>]+)>?(?:\s+[\"'][^)]*)?\)")
+
+
+def _is_markdown(source_path: str) -> bool:
+    # Link checks apply to documentation only; code such as Bash `[[ -n "$x" ]]`
+    # is not wiki-link syntax.
+    return source_path.lower().endswith(MARKDOWN_SUFFIXES)
+
+
+def _markdown_link_targets(source_path: str, text: str) -> set[str]:
+    """Return project-relative paths targeted by relative Markdown links."""
+    targets: set[str] = set()
+    base = PurePosixPath(source_path).parent
+    for match in MARKDOWN_LINK_PATTERN.finditer(strip_markdown_code(text)):
+        target = match.group(1).split("#", 1)[0].split("?", 1)[0]
+        if not target or re.match(r"^[a-z][a-z0-9+.-]*:", target, flags=re.IGNORECASE):
+            continue
+        if target.startswith("/"):
+            continue
+        resolved = posixpath.normpath(str(base / target))
+        if resolved.startswith(".."):
+            continue
+        targets.add(resolved.lower())
+    return targets
 
 
 def lint_project(project: str, detailed: bool = False) -> dict[str, Any]:
@@ -181,7 +208,9 @@ def _check_broken_wiki_links(
     for chunk in index.get("chunks", []):
         text = chunk.get("text", "")
         source_path = chunk.get("source_path", "")
-        
+        if not _is_markdown(source_path):
+            continue
+
         links = extract_wiki_links(text)
         for link in links:
             link_lower = link.lower()
@@ -238,43 +267,44 @@ def _check_orphan_pages(
     index: dict[str, Any],
     available_names: set[str]
 ) -> list[dict[str, Any]]:
-    """Find pages that are never referenced by other pages."""
+    """Find Markdown pages with no incoming and no outgoing documentation links."""
     issues: list[dict[str, Any]] = []
-    
-    # Build reference graph
-    referenced: set[str] = set()
+
+    wiki_links_by_source: dict[str, list[str]] = {}
+    markdown_targets_by_source: dict[str, set[str]] = {}
     for chunk in index.get("chunks", []):
+        source_path = chunk.get("source_path", "")
+        if not _is_markdown(source_path):
+            continue
         text = chunk.get("text", "")
-        links = extract_wiki_links(text)
-        for link in links:
-            referenced.add(link.lower())
-    
-    # Find orphans (pages not referenced and not referencing others)
+        wiki_links_by_source.setdefault(source_path, []).extend(
+            link.lower() for link in extract_wiki_links(text)
+        )
+        markdown_targets_by_source.setdefault(source_path, set()).update(
+            _markdown_link_targets(source_path, text)
+        )
+
     for doc in index.get("documents", []):
         source_path = doc.get("source_path", "")
+        if not _is_markdown(source_path):
+            continue
         path_stem = Path(source_path).stem.lower()
-        
+        path_lower = source_path.lower()
+
         # Skip index files and common non-content files
         if any(skip in path_stem for skip in ["index", "readme", "_log", "_"]):
             continue
-        
-        # Check if this page is orphaned
-        is_referenced = False
-        has_outgoing = False
-        
-        for chunk in index.get("chunks", []):
-            if chunk.get("source_path") == source_path:
-                links = extract_wiki_links(chunk.get("text", ""))
-                if links:
-                    has_outgoing = True
-        
-        for chunk in index.get("chunks", []):
-            if chunk.get("source_path") != source_path:
-                links = extract_wiki_links(chunk.get("text", ""))
-                if any(link.lower() == path_stem or link.lower().endswith(path_stem) for link in links):
-                    is_referenced = True
-                    break
-        
+
+        has_outgoing = bool(wiki_links_by_source.get(source_path)) or bool(
+            markdown_targets_by_source.get(source_path)
+        )
+        is_referenced = any(
+            path_lower in markdown_targets_by_source.get(other, set())
+            or any(link == path_stem or link.endswith(path_stem) for link in links)
+            for other, links in wiki_links_by_source.items()
+            if other != source_path
+        )
+
         if not is_referenced and not has_outgoing:
             issues.append({
                 "type": "orphan_page",
@@ -282,7 +312,7 @@ def _check_orphan_pages(
                 "source_path": source_path,
                 "message": "Page is not referenced by other pages and has no outgoing links",
             })
-    
+
     return issues
 
 

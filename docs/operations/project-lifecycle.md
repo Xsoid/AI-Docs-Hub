@@ -27,12 +27,14 @@ Onboarding не создает tracked files в AI Docs Hub. Snapshot init хр�
 
 Quality profile строится по manifests, package scripts, Makefile targets, tests directory, CI workflow metadata и stack files. Из project scripts используются только существующие canonical entrypoints; Hub не устанавливает scanners и не добавляет команды в подключенный проект.
 
+Если в корне нет `Cargo.toml`, profile ищет `*/Cargo.toml` на один уровень ниже (кроме hidden, `target`, `node_modules`, `vendor`) и добавляет required check `tests:<dir>` с `cargo test --manifest-path`. Каждый `scripts/test-*.sh` становится required check `script:<name>` с командой `bash scripts/<name>.sh`. Symlink scripts пропускаются.
+
     python3.11 scripts/quality-profile --project name
     make quality-profile PROJECT=name
     python3.11 scripts/verify-patch --project name --scope working --json
     make verify-patch PROJECT=name SCOPE=staged
 
-Verification всегда выполняет git diff --check и secret scan. Обнаруженные lint/typecheck/tests/build/check commands выполняются с timeout. Результат содержит только status, exit code, duration и output digest/size; stdout, source snippets и absolute project paths не сохраняются.
+Verification всегда выполняет git diff --check и secret scan. Name heuristic не блокирует design-token file (`design-tokens*`, `primitive-tokens.md`, `validate-tokens.cjs`, `token-validator.py` и похожие code/docs files), но только если secret scan его содержимого прошел. Обнаруженные lint/typecheck/tests/build/check commands выполняются с timeout. Результат содержит только status, exit code, duration и output digest/size; stdout, source snippets и absolute project paths не сохраняются.
 
 Статусы отдельных checks: passed, failed, error или skipped. Отсутствующий optional tool — skipped/not available, а не passed. Required failure блокирует gate.
 

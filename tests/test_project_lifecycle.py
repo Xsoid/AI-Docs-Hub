@@ -160,6 +160,50 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertEqual(verification["status"], "failed")
         self.assertIn("openai_key", {finding["kind"] for finding in secret["findings"]})
 
+    def test_profile_discovers_nested_cargo_and_test_scripts(self) -> None:
+        (self.root / "core").mkdir()
+        (self.root / "core" / "Cargo.toml").write_text("[package]\nname = \"core\"\n", encoding="utf-8")
+        (self.root / "target").mkdir()
+        (self.root / "target" / "Cargo.toml").write_text("", encoding="utf-8")
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts" / "test-core.sh").write_text("exit 0\n", encoding="utf-8")
+        (self.root / "scripts" / "build.sh").write_text("exit 0\n", encoding="utf-8")
+        with patch("rag.project_lifecycle.LIFECYCLE_STORAGE_DIR", self.storage):
+            profile = quality_profile(self.config)
+
+        commands = {item["id"]: (item["command"], item["required"]) for item in profile["verification"]["checks"]}
+        self.assertEqual(commands["tests:core"], (["cargo", "test", "--manifest-path", "core/Cargo.toml"], True))
+        self.assertEqual(commands["script:test-core"], (["bash", "scripts/test-core.sh"], True))
+        self.assertNotIn("tests:target", commands)
+        self.assertNotIn("script:build", commands)
+        self.assertIn("core/Cargo.toml", profile["manifests"])
+
+    def test_test_script_failure_blocks_verification(self) -> None:
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts" / "test-fail.sh").write_text("exit 3\n", encoding="utf-8")
+        with patch("rag.project_lifecycle.LIFECYCLE_STORAGE_DIR", self.storage):
+            verification = verify_patch(self.config)
+
+        check = next(item for item in verification["checks"] if item["id"] == "script:test-fail")
+        self.assertEqual((check["status"], check["returncode"]), ("failed", 3))
+        self.assertEqual(verification["status"], "failed")
+
+    def test_design_token_file_passes_name_check_only_with_clean_content(self) -> None:
+        skill = self.root / ".agents" / "skills" / "design-system"
+        (skill / "scripts").mkdir(parents=True)
+        (skill / "scripts" / "validate-tokens.cjs").write_text("const color = '#006C98';\n", encoding="utf-8")
+        (skill / "primitive-tokens.md").write_text("token: sk-0123456789abcdefghijk\n", encoding="utf-8")
+        (self.root / "oauth-token.json").write_text("{}\n", encoding="utf-8")
+        with patch("rag.project_lifecycle.LIFECYCLE_STORAGE_DIR", self.storage):
+            verification = verify_patch(self.config)
+
+        secret = next(check for check in verification["checks"] if check["id"] == "secret-scan")
+        found = {(finding["kind"], finding.get("path")) for finding in secret["findings"]}
+        self.assertEqual(verification["status"], "failed")
+        self.assertNotIn(("secret_looking_path", ".agents/skills/design-system/scripts/validate-tokens.cjs"), found)
+        self.assertIn(("openai_key", ".agents/skills/design-system/primitive-tokens.md"), found)
+        self.assertIn(("secret_looking_path", "oauth-token.json"), found)
+
     def test_adaptive_review_context_distinguishes_docs_and_auth_surface(self) -> None:
         docs_dir = self.root / "docs"
         docs_dir.mkdir()

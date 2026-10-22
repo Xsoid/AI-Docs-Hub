@@ -19,7 +19,7 @@ AI Docs Hub читает локальные проектные файлы, по�
 - AWS-like keys;
 - GitHub tokens;
 - OpenAI-like keys;
-- generic `secret`, `token`, `password`, `api_key` assignments.
+- generic `secret`, `token`, `password`, `api_key` assignments. Unquoted call expression, например `password: z.string().min(8)`, и identifier без цифр, закрывающий вызов (`api_key=api_key)`, `session: URLSession)`), считаются кодом, а не значением.
 
 Если scan находит suspicious content, indexing/generated read для этого project должен быть blocked или skipped с warning.
 
