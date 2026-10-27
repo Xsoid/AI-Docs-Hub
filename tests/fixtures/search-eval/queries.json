@@ -1,0 +1,12 @@
+[
+  {"query": "queue retry policy", "relevant": ["docs/architecture/queue.md", "src/worker.py"], "case": "duplicates of one source file"},
+  {"query": "worker concurrency", "relevant": ["docs/architecture/queue.md"], "case": "duplicates of one source file"},
+  {"query": "cache invalidation", "relevant": ["docs/decisions/adr-002-cache-invalidation.md", "docs/architecture/cache.md"], "case": "test and script noise"},
+  {"query": "deploy rollback", "relevant": ["docs/operations/deploy.md"], "case": "changelog and change-note noise"},
+  {"query": "authentication token refresh", "relevant": ["docs/architecture/auth.md"], "case": "long chunk without length normalization"},
+  {"query": "agent rules", "relevant": ["AGENTS.md"], "case": "agent instructions"},
+  {"query": "billing invoice", "relevant": ["docs/modules/billing.md"], "case": "plain match"},
+  {"query": "резервное копирование", "relevant": ["docs/operations/backup.md"], "case": "russian query on russian docs"},
+  {"query": "database backup", "relevant": ["docs/operations/backup.md"], "case": "english query on russian docs; ranking cannot solve it"},
+  {"query": "demo service overview", "relevant": ["README.md"], "case": "readme"}
+]

@@ -19,6 +19,26 @@ MAX_READ_DOC_BYTES = 250_000
 CHUNK_CHARS = 3200
 CHUNK_OVERLAP = 300
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_]+")
+BM25_K1 = 1.2
+BM25_B = 0.75
+HEADING_BOOST = 1.5
+LOW_PRIORITY_WEIGHT = 0.6
+HIGH_PRIORITY_WEIGHT = 1.25
+# Ordered rules: the first match decides. Low priority wins, so docs/changes/adr-fix.md stays low.
+LOW_PRIORITY_SOURCE_RES = (
+    re.compile(r"(^|/)tests?/"),
+    re.compile(r"(^|/)[^/]*tests?\.[^/]+$", re.IGNORECASE),
+    re.compile(r"(^|/)test[_-][^/]*$", re.IGNORECASE),
+    re.compile(r"(^|/)[^/]*_test\.[^/]+$", re.IGNORECASE),
+    re.compile(r"(^|/)changelog[^/]*$", re.IGNORECASE),
+    re.compile(r"(^|/)docs/changes/"),
+)
+HIGH_PRIORITY_SOURCE_RES = (
+    re.compile(r"(^|/)(decisions|adr)/"),
+    re.compile(r"(^|/)adr[-_][^/]*$", re.IGNORECASE),
+    re.compile(r"(^|/)architecture/"),
+    re.compile(r"(^|/)(agents|claude|readme)\.md$", re.IGNORECASE),
+)
 
 
 def utc_now() -> str:
@@ -31,6 +51,16 @@ def content_hash(text: str) -> str:
 
 def tokenize(text: str) -> list[str]:
     return [token.lower() for token in TOKEN_RE.findall(text)]
+
+
+def source_weight(source_path: str) -> float:
+    """Deterministic ranking weight by document type: tests, scripts and change logs below decisions and architecture."""
+    path = source_path.replace("\\", "/")
+    if any(pattern.search(path) for pattern in LOW_PRIORITY_SOURCE_RES):
+        return LOW_PRIORITY_WEIGHT
+    if any(pattern.search(path) for pattern in HIGH_PRIORITY_SOURCE_RES):
+        return HIGH_PRIORITY_WEIGHT
+    return 1.0
 
 
 def _read_text(path: Path, max_bytes: int = MAX_FILE_BYTES) -> tuple[str, bool]:
@@ -256,7 +286,7 @@ def load_index(project: str) -> dict[str, Any]:
     return json.loads(config.index_path.read_text(encoding="utf-8"))
 
 
-def search_index(project: str, query: str, limit: int = 8, path_filter: str | None = None) -> dict[str, Any]:
+def search_index(project: str, query: str, limit: int = 8, path_filter: str | None = None, min_confidence: float = 0.0) -> dict[str, Any]:
     index = load_index(project)
     chunks = list(index.get("chunks") or [])
     if path_filter:
@@ -278,6 +308,7 @@ def search_index(project: str, query: str, limit: int = 8, path_filter: str | No
                 doc_freq[term] = doc_freq.get(term, 0) + 1
 
     total = max(1, len(chunks))
+    average_length = sum(len(terms) for _, terms in chunk_terms) / total or 1.0
     distinct_query_terms = list(dict.fromkeys(query_terms))
     scored: list[dict[str, Any]] = []
     for chunk, terms in chunk_terms:
@@ -287,18 +318,24 @@ def search_index(project: str, query: str, limit: int = 8, path_filter: str | No
         term_counts: dict[str, int] = {}
         for term in terms:
             term_counts[term] = term_counts.get(term, 0) + 1
+        length_norm = 1 - BM25_B + BM25_B * len(terms) / average_length
         score = 0.0
         for term in query_terms:
             tf = term_counts.get(term, 0)
             if tf == 0:
                 continue
-            idf = math.log((total + 1) / (doc_freq.get(term, 0) + 1)) + 1
-            boost = 1.5 if term in heading_terms else 1.0
-            score += (1 + math.log(tf)) * idf * boost
+            df = doc_freq.get(term, 0)
+            idf = math.log(1 + (total - df + 0.5) / (df + 0.5))
+            boost = HEADING_BOOST if term in heading_terms else 1.0
+            score += idf * tf * (BM25_K1 + 1) / (tf + BM25_K1 * length_norm) * boost
+        weight = source_weight(str(chunk.get("source_path", "")))
+        score *= weight
         if score <= 0:
             continue
-        matched_terms = [term for term in distinct_query_terms if term in term_counts]
         confidence = round(min(0.99, score / (score + 6.0)), 3)
+        if confidence < min_confidence:
+            continue
+        matched_terms = [term for term in distinct_query_terms if term in term_counts]
         snippet = str(chunk.get("text", "")).strip().replace("\n", " ")
         if len(snippet) > 700:
             snippet = snippet[:697].rstrip() + "..."
@@ -317,10 +354,16 @@ def search_index(project: str, query: str, limit: int = 8, path_filter: str | No
                 "matched_terms": matched_terms,
                 "heading_match": any(term in heading_terms for term in matched_terms),
                 "query_coverage": round(len(matched_terms) / len(distinct_query_terms), 3),
+                "source_weight": weight,
             }
         )
 
-    scored.sort(key=lambda item: item["score"], reverse=True)
+    scored.sort(key=lambda item: (-item["score"], str(item["source_path"])))
+    # One result per source file: the best chunk represents the file.
+    best_per_file: dict[Any, dict[str, Any]] = {}
+    for item in scored:
+        best_per_file.setdefault(item["source_path"], item)
+    scored = list(best_per_file.values())
     return {
         "project": project,
         "namespace": index.get("namespace"),
@@ -412,8 +455,8 @@ def project_profile(project: str) -> dict[str, Any]:
     }
 
 
-def search_decisions(project: str, query: str, limit: int = 8) -> dict[str, Any]:
-    result = search_index(project, query, limit=limit * 2)
+def search_decisions(project: str, query: str, limit: int = 8, min_confidence: float = 0.0) -> dict[str, Any]:
+    result = search_index(project, query, limit=limit * 2, min_confidence=min_confidence)
     filtered = [
         item
         for item in result["results"]
@@ -424,9 +467,9 @@ def search_decisions(project: str, query: str, limit: int = 8) -> dict[str, Any]
     return result
 
 
-def search_modules(project: str, module_name: str, limit: int = 8) -> dict[str, Any]:
+def search_modules(project: str, module_name: str, limit: int = 8, min_confidence: float = 0.0) -> dict[str, Any]:
     query = module_name
-    result = search_index(project, query, limit=limit * 2)
+    result = search_index(project, query, limit=limit * 2, min_confidence=min_confidence)
     module_lower = module_name.lower()
     filtered = [
         item

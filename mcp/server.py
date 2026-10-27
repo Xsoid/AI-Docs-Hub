@@ -60,6 +60,17 @@ from rag.mcp_audit import (  # noqa: E402
 
 
 Json = dict[str, Any]
+MIN_CONFIDENCE_SCHEMA = {
+    "type": "number", "default": 0, "minimum": 0, "maximum": 1,
+    "description": "Optional: drop results with lower confidence. The default 0 keeps every result.",
+}
+
+
+def min_confidence_arg(args: Json) -> float:
+    value = float(args.get("min_confidence", 0) or 0)
+    if not 0 <= value <= 1:
+        raise ValueError("min_confidence must be between 0 and 1")
+    return value
 
 
 class McpServer:
@@ -147,7 +158,7 @@ class McpServer:
         if not query:
             raise ValueError("query is required")
         limit = int(args.get("limit", 8))
-        return search_index(project, query, limit=limit)
+        return search_index(project, query, limit=limit, min_confidence=min_confidence_arg(args))
 
     def tool_read_doc(self, args: Json) -> Json:
         project = self.resolve_project(args)
@@ -162,7 +173,7 @@ class McpServer:
         if not query:
             raise ValueError("query is required")
         limit = int(args.get("limit", 8))
-        return search_decisions(project, query, limit=limit)
+        return search_decisions(project, query, limit=limit, min_confidence=min_confidence_arg(args))
 
     def tool_search_modules(self, args: Json) -> Json:
         project = self.resolve_project(args)
@@ -170,7 +181,7 @@ class McpServer:
         if not module_name:
             raise ValueError("module_name is required")
         limit = int(args.get("limit", 8))
-        return search_modules(project, module_name, limit=limit)
+        return search_modules(project, module_name, limit=limit, min_confidence=min_confidence_arg(args))
 
     def tool_index_project(self, args: Json) -> Json:
         project = self.resolve_project(args)
@@ -474,6 +485,7 @@ class McpServer:
                         "project": project_property,
                         "query": {"type": "string"},
                         "limit": {"type": "integer", "default": 8, "minimum": 1, "maximum": 50},
+                        "min_confidence": MIN_CONFIDENCE_SCHEMA,
                     },
                     "required": ["query"] if self.active_project else ["project", "query"],
                 },
@@ -499,6 +511,7 @@ class McpServer:
                         "project": project_property,
                         "query": {"type": "string"},
                         "limit": {"type": "integer", "default": 8, "minimum": 1, "maximum": 50},
+                        "min_confidence": MIN_CONFIDENCE_SCHEMA,
                     },
                     "required": ["query"] if self.active_project else ["project", "query"],
                 },
@@ -512,6 +525,7 @@ class McpServer:
                         "project": project_property,
                         "module_name": {"type": "string"},
                         "limit": {"type": "integer", "default": 8, "minimum": 1, "maximum": 50},
+                        "min_confidence": MIN_CONFIDENCE_SCHEMA,
                     },
                     "required": ["module_name"] if self.active_project else ["project", "module_name"],
                 },
