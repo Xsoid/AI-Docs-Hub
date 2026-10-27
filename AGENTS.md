@@ -32,6 +32,8 @@ Read `docs/architecture/overview.md` before changing architecture, RAG, MCP, doc
 
 ## Agent Workflow Routing
 
+While writing or changing code, apply the user-level `ub-mode` skill (`~/.claude/skills/ub-mode/SKILL.md` or `~/.codex/skills/ub-mode/SKILL.md`; upstream https://github.com/unclebob/ub-mode). Rules in this file and the procedures below take precedence where they conflict. Report a missing `crapper`, `dryer`, or `mutator` gate as skipped.
+
 For every code change, use these procedures in order. They own the workflow details and the current patch-fingerprint requirements:
 
 1. `.agents/skills/code-change-verification/SKILL.md`
