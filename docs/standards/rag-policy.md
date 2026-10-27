@@ -10,6 +10,11 @@ Lite RAG в AI Docs Hub является локальным derived index пов
 - Secret-looking source files пропускаются и записываются в index security metadata; их содержимое не попадает в chunks/search results.
 - `.env`, private keys, tokens, cookies, sessions, credentials, dumps и secret-looking files не индексируются.
 - RAG output должен возвращать source path, section/heading, score, confidence, updated timestamp, content hash и snippet.
+- Каждый результат объясняет совпадение:
+  - `matched_terms` - различные нормализованные термины запроса, найденные в heading или тексте chunk, в порядке запроса;
+  - `heading_match` - найден ли хотя бы один из них в heading; такое совпадение повышает score в 1,5 раза;
+  - `query_coverage` - доля различных терминов запроса из `matched_terms`, округленная до трех знаков.
+- Объяснение содержит только термины запроса и не добавляет фрагменты текста. Низкий `query_coverage` - сигнал переформулировать запрос, например другим языком или термином.
 - RAG index не является source of truth.
 
 ## Storage

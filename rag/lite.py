@@ -278,6 +278,7 @@ def search_index(project: str, query: str, limit: int = 8, path_filter: str | No
                 doc_freq[term] = doc_freq.get(term, 0) + 1
 
     total = max(1, len(chunks))
+    distinct_query_terms = list(dict.fromkeys(query_terms))
     scored: list[dict[str, Any]] = []
     for chunk, terms in chunk_terms:
         if not terms:
@@ -296,6 +297,7 @@ def search_index(project: str, query: str, limit: int = 8, path_filter: str | No
             score += (1 + math.log(tf)) * idf * boost
         if score <= 0:
             continue
+        matched_terms = [term for term in distinct_query_terms if term in term_counts]
         confidence = round(min(0.99, score / (score + 6.0)), 3)
         snippet = str(chunk.get("text", "")).strip().replace("\n", " ")
         if len(snippet) > 700:
@@ -312,6 +314,9 @@ def search_index(project: str, query: str, limit: int = 8, path_filter: str | No
                 "updated_at": chunk.get("updated_at"),
                 "content_hash": chunk.get("content_hash"),
                 "snippet": snippet,
+                "matched_terms": matched_terms,
+                "heading_match": any(term in heading_terms for term in matched_terms),
+                "query_coverage": round(len(matched_terms) / len(distinct_query_terms), 3),
             }
         )
 

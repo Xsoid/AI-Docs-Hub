@@ -46,6 +46,8 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 - `create_skill_evolution_proposal`;
 - `apply_skill_proposal`.
 
+`search_docs`, `search_decisions` и `search_modules` возвращают в каждом результате `matched_terms`, `heading_match` и `query_coverage`. Поля определяет `docs/standards/rag-policy.md`.
+
 `get_project_context` возвращает компактный read-only manifest одного namespace: profile, docs index/readiness status, bounded metadata root/nested `AGENTS.md` и `CLAUDE.md`, каталог skills без содержимого, quality/capability status, `context_fingerprint` и deterministic `recommended_next_tools`. Manifest не является dump документации и не preload-ит source files.
 
 Manifest должен оставаться в бюджете `MANIFEST_BUDGET_BYTES` (4096 байт UTF-8 JSON, `rag/project_context.py`) для крупного типичного проекта: 6 instruction files и 15 skills. Тест в `tests/test_project_context.py` падает при превышении. Чтобы держать бюджет:
