@@ -14,8 +14,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from rag.runtime_logs import APPLY_FIX_LOG_PATTERN, LOG_DIR, MAX_APPLY_FIX_LOGS, prune_logs  # noqa: E402
+
 FIX_DIR = ROOT / "storage" / "runtime" / "fixes"
-LOG_DIR = ROOT / "storage" / "logs"
 LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / "local.ai-docs-hub.runtime.plist"
 
 ACTION_DESCRIPTIONS = {
@@ -378,6 +379,7 @@ def detach(args: argparse.Namespace) -> dict[str, Any]:
     if args.project:
         command.extend(["--project", args.project])
     log = log_path.open("ab")
+    prune_logs(LOG_DIR, APPLY_FIX_LOG_PATTERN, MAX_APPLY_FIX_LOGS)
     process = subprocess.Popen(
         command,
         cwd=str(ROOT),

@@ -20,6 +20,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from rag.runtime_logs import RUNTIME_STDERR_LOG, RUNTIME_STDOUT_LOG, rotate_stream  # noqa: E402
+
 RUNTIME_DIR = ROOT / "storage" / "runtime"
 STATUS_PATH = RUNTIME_DIR / "hub-dev.status.json"
 
@@ -37,6 +41,19 @@ def utc_now() -> str:
 
 def log(component: str, message: str) -> None:
     print(f"[{component}] {message}", flush=True)
+
+
+def rotate_runtime_logs() -> None:
+    """Bound launchd logs; a no-op unless stdout/stderr are the managed log files."""
+    for stream, path in ((sys.stdout, RUNTIME_STDOUT_LOG), (sys.stderr, RUNTIME_STDERR_LOG)):
+        stream.flush()
+        try:
+            rotated = rotate_stream(stream.fileno(), path)
+        except OSError as exc:
+            log("hub", f"log rotation failed for {path.name}: {exc}")
+            continue
+        if rotated:
+            log("hub", f"rotated {path.name}")
 
 
 def run_startup_step(name: str, command: list[str]) -> None:
@@ -286,6 +303,7 @@ def main() -> int:
                         raise RuntimeError(final_message)
 
             write_status("running", docs, watcher, fix_server, docs_url, docs_health_url, docs_http, "running")
+            rotate_runtime_logs()
 
             if stop_requested["value"]:
                 signum = stop_requested["signal"]

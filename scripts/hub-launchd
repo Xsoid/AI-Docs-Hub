@@ -15,9 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 LABEL = "local.ai-docs-hub.runtime"
 LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 PLIST_PATH = LAUNCH_AGENTS_DIR / f"{LABEL}.plist"
-LOG_DIR = ROOT / "storage" / "logs"
-STDOUT_LOG = LOG_DIR / "hub-runtime.out.log"
-STDERR_LOG = LOG_DIR / "hub-runtime.err.log"
+sys.path.insert(0, str(ROOT))
+
+from rag.runtime_logs import LOG_DIR, RUNTIME_STDERR_LOG as STDERR_LOG, RUNTIME_STDOUT_LOG as STDOUT_LOG  # noqa: E402
 
 
 def require_launchctl() -> str:
@@ -232,7 +232,7 @@ def command_logs(args: argparse.Namespace) -> int:
         return 0
     command = [tail]
     if args.follow:
-        command.append("-f")
+        command.append("-F")
     command.extend(["-n", str(args.lines), *map(str, existing)])
     return subprocess.call(command)
 

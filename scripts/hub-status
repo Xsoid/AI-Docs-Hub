@@ -25,6 +25,7 @@ from rag.health import run_healthcheck  # noqa: E402
 from rag.sources import build_source_plan  # noqa: E402
 from rag.skill_intelligence import get_stored_skill_intelligence_status  # noqa: E402
 from rag.project_lifecycle import lifecycle_status  # noqa: E402
+from rag.runtime_logs import RUNTIME_STDERR_LOG as LAUNCHD_STDERR_LOG, RUNTIME_STDOUT_LOG as LAUNCHD_STDOUT_LOG  # noqa: E402
 
 DOCS_URL = "http://localhost:4321/"
 DOCS_HEALTH_URL = "http://localhost:4321/status/"
@@ -32,8 +33,6 @@ RUNTIME_DIR = ROOT / "storage" / "runtime"
 HUB_DEV_STATUS_PATH = RUNTIME_DIR / "hub-dev.status.json"
 LAUNCHD_LABEL = "local.ai-docs-hub.runtime"
 LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
-LAUNCHD_STDOUT_LOG = ROOT / "storage" / "logs" / "hub-runtime.out.log"
-LAUNCHD_STDERR_LOG = ROOT / "storage" / "logs" / "hub-runtime.err.log"
 GENERATED_DIR = ROOT / "storage" / "generated"
 DOCS_PUBLIC_DIR = ROOT / "docs-site" / "public"
 PROJECT_PAGES_DIR = ROOT / "docs-site" / "src" / "content" / "docs" / "projects"

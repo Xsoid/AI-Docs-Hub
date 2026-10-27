@@ -258,4 +258,6 @@ storage/logs/hub-runtime.out.log
 storage/logs/hub-runtime.err.log
 ```
 
+Размер логов ограничен ротацией. Лимиты и механизм описаны в `runtime-observability.md`, раздел «Ротация Логов».
+
 Установка LaunchAgent не выполняется автоматически при обычной работе с репозиторием. Ее нужно запускать явно.
