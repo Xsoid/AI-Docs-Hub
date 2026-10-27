@@ -132,7 +132,7 @@ make hub-install
 
 ### `make hub-stop`
 
-Останавливает persistent service через `launchctl bootout`.
+Останавливает persistent service через `launchctl bootout`. `bootout` возвращается раньше, чем launchd выгружает service, поэтому команда ждет выгрузки до 10 секунд. Если service остается загруженным, команда завершается ошибкой `still loaded`. `make hub-restart` и `make hub-uninstall` используют то же ожидание.
 
 ### `make hub-restart`
 

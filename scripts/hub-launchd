@@ -7,12 +7,15 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 LABEL = "local.ai-docs-hub.runtime"
+UNLOAD_TIMEOUT_SECONDS = 10.0
+UNLOAD_POLL_SECONDS = 0.2
 LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 PLIST_PATH = LAUNCH_AGENTS_DIR / f"{LABEL}.plist"
 sys.path.insert(0, str(ROOT))
@@ -104,6 +107,16 @@ def is_loaded() -> bool:
     return result.returncode == 0
 
 
+def bootout() -> None:
+    """Unload the service and wait: launchctl bootout returns before launchd removes it."""
+    run_launchctl("bootout", service_target(), check=True)
+    deadline = time.monotonic() + UNLOAD_TIMEOUT_SECONDS
+    while is_loaded():
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"{LABEL} is still loaded {UNLOAD_TIMEOUT_SECONDS:g}s after bootout")
+        time.sleep(UNLOAD_POLL_SECONDS)
+
+
 def launchd_summary() -> dict[str, Any]:
     installed = PLIST_PATH.exists()
     if sys.platform != "darwin":
@@ -172,7 +185,7 @@ def command_start(_args: argparse.Namespace) -> int:
 def command_stop(_args: argparse.Namespace) -> int:
     require_launchctl()
     if is_loaded():
-        run_launchctl("bootout", service_target(), check=True)
+        bootout()
         print(f"stopped: {LABEL}")
     else:
         print(f"not loaded: {LABEL}")
@@ -187,7 +200,7 @@ def command_restart(args: argparse.Namespace) -> int:
 def command_uninstall(_args: argparse.Namespace) -> int:
     require_launchctl()
     if is_loaded():
-        run_launchctl("bootout", service_target(), check=True)
+        bootout()
         print(f"stopped: {LABEL}")
     if PLIST_PATH.exists():
         PLIST_PATH.unlink()
