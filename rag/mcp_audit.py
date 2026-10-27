@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-from .config import HUB_ROOT
+from .config import STORAGE_DIR
 
 
 SCHEMA_VERSION = 1
@@ -41,7 +41,7 @@ CONFIRM_TOOLS = {"index_project", "scaffold_project_docs", "apply_skill_proposal
 
 
 def audit_directory() -> Path:
-    return Path(os.environ.get("MCP_AUDIT_DIR", HUB_ROOT / "storage" / "mcp-audit")).resolve()
+    return Path(os.environ.get("MCP_AUDIT_DIR") or STORAGE_DIR / "mcp-audit").resolve()
 
 
 def retention_days() -> int:

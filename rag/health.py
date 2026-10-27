@@ -11,6 +11,7 @@ from typing import Any
 from .config import (
     CONFIGS_DIR,
     HUB_ROOT,
+    STORAGE_DIR,
     INDEX_DIR,
     is_unbound_example_config,
     load_project_configs,
@@ -56,7 +57,7 @@ def run_healthcheck() -> dict[str, Any]:
 
     required_paths = [
         ("configs", CONFIGS_DIR),
-        ("storage", HUB_ROOT / "storage"),
+        ("storage", STORAGE_DIR),
         ("index_dir", INDEX_DIR),
         ("docs_site", HUB_ROOT / "docs-site"),
         ("mcp_server", HUB_ROOT / "mcp" / "server.py"),

@@ -20,13 +20,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from .config import HUB_ROOT, ProjectConfig
+from .config import STORAGE_DIR as HUB_STORAGE_DIR, ProjectConfig
 
 
 ENGINE_VERSION = "1"
 REGISTRY_VERSION = "1"
 POLICY_VERSION = "1"
-STORAGE_DIR = HUB_ROOT / "storage" / "decision-engine"
+STORAGE_DIR = HUB_STORAGE_DIR / "decision-engine"
 MAX_FEATURES_BYTES = 8_192
 MAX_CACHE_FILES = 200
 MAX_LOCAL_RESPONSE_BYTES = 16_384

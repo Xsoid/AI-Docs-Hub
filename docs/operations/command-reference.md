@@ -10,6 +10,7 @@
 | `make healthcheck` | Проверить структуру репозитория, runtimes, storage, configs и Lite RAG backend. |
 | `make validate-configs` | Проверить `configs/projects/*.yaml` без запуска runtime. |
 | `make mcp-test` | Проверить stdio MCP handshake, tools list и MCP `healthcheck`. |
+| `make test` | Запустить unit-тесты Hub с временным `HUB_STORAGE_DIR`. Тесты не пишут в реальный `storage/`. |
 
 `healthcheck` не доказывает, что docs-site слушает порт. Для live runtime используйте `make hub-status`.
 

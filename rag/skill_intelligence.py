@@ -12,14 +12,14 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
-from .config import HUB_ROOT, ProjectConfig, get_project_config
+from .config import HUB_ROOT, STORAGE_DIR, ProjectConfig, get_project_config
 from .lite import collect_project_files, content_hash
 from .logging import log_operation
 from .security import is_excluded, safe_resolve, scan_text_for_secrets
 from .sources import build_source_plan
 
 
-SKILL_STORAGE_DIR = HUB_ROOT / "storage" / "skill-intelligence"
+SKILL_STORAGE_DIR = STORAGE_DIR / "skill-intelligence"
 SKILL_FILE = "SKILL.md"
 MAX_SKILL_LINES = 300
 MAX_SOURCE_BYTES = 1_000_000
@@ -74,8 +74,8 @@ def _storage_project_dir(project: str) -> Path:
         raise ValueError("Project id is not safe for local Skill Intelligence storage")
     hub_root = HUB_ROOT.resolve()
     storage_root = SKILL_STORAGE_DIR.resolve()
-    if not storage_root.is_relative_to(hub_root):
-        raise ValueError("Skill Intelligence storage must stay inside the AI Docs Hub repository")
+    if not (storage_root.is_relative_to(hub_root) or storage_root.is_relative_to(STORAGE_DIR.resolve())):
+        raise ValueError("Skill Intelligence storage must stay inside the AI Docs Hub repository or its storage root")
     project_dir = SKILL_STORAGE_DIR / project
     if not project_dir.resolve().is_relative_to(storage_root):
         raise ValueError("Skill Intelligence project storage cannot escape its local storage root")

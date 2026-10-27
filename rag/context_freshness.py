@@ -12,6 +12,7 @@ from typing import Any
 
 from .config import (
     HUB_ROOT,
+    STORAGE_DIR,
     ProjectConfig,
     expand_path_variables,
     get_project_config,
@@ -29,7 +30,7 @@ from .skill_intelligence import get_skill_inventory
 
 
 SCHEMA_VERSION = 1
-SNAPSHOT_DIR = HUB_ROOT / "storage" / "context-snapshots"
+SNAPSHOT_DIR = STORAGE_DIR / "context-snapshots"
 SNAPSHOT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 COMPONENT_NAMES = ("git", "config", "instructions", "docs_index", "skills", "codebase_index")
 

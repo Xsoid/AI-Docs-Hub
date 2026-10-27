@@ -3,7 +3,7 @@ PROJECT ?= example-project
 SCOPE ?= working
 KIND ?= code
 
-.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test codebase-memory-install codebase-memory-status codebase-memory-index claude-mcp-status claude-mcp-install claude-mcp-install-hub healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs
+.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test test codebase-memory-install codebase-memory-status codebase-memory-index claude-mcp-status claude-mcp-install claude-mcp-install-hub healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -96,6 +96,9 @@ mcp-dev:
 
 mcp-test:
 	$(PYTHON) scripts/mcp-test
+
+test:
+	@storage=$$(mktemp -d) && HUB_STORAGE_DIR=$$storage MCP_AUDIT_DIR= $(PYTHON) -m unittest discover -s tests; status=$$?; rm -rf "$$storage"; exit $$status
 
 codebase-memory-install:
 	mkdir -p storage/runtime/bin

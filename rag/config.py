@@ -12,7 +12,8 @@ from .mkdocs import DEFAULT_MKDOCS_CONFIG, SUPPORTED_DOCS_BACKENDS
 
 HUB_ROOT = Path(__file__).resolve().parents[1]
 CONFIGS_DIR = HUB_ROOT / "configs" / "projects"
-INDEX_DIR = HUB_ROOT / "storage" / "index"
+STORAGE_DIR = Path(os.environ.get("HUB_STORAGE_DIR") or HUB_ROOT / "storage")
+INDEX_DIR = STORAGE_DIR / "index"
 PLACEHOLDER_PATH_MARKERS = ("<", "__")
 PATH_VARIABLE_RE = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
 DEFAULT_PATH_VARIABLES = {

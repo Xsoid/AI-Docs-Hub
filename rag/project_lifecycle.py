@@ -11,11 +11,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from .config import HUB_ROOT, ProjectConfig, get_project_config, is_unbound_example_config
+from .config import HUB_ROOT, STORAGE_DIR, ProjectConfig, get_project_config, is_unbound_example_config
 from .security import is_excluded, normalize_rel, safe_resolve, scan_text_for_secrets
 
 
-LIFECYCLE_STORAGE_DIR = HUB_ROOT / "storage" / "project-lifecycle"
+LIFECYCLE_STORAGE_DIR = STORAGE_DIR / "project-lifecycle"
 # Design tokens (UI colors, spacing) share the word "token" with credentials.
 DESIGN_TOKEN_NAME_RE = re.compile(
     r"(?<![a-z0-9])(?:"

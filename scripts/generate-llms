@@ -10,13 +10,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from rag.config import HUB_ROOT, load_project_configs, validate_project_config  # noqa: E402
+from rag.config import HUB_ROOT, STORAGE_DIR, load_project_configs, validate_project_config  # noqa: E402
 from rag.lite import check_project_secrets, collect_project_files  # noqa: E402
 from rag.security import scan_text_for_secrets  # noqa: E402
 
 DOCS_ROOT = HUB_ROOT / "docs-site" / "src" / "content" / "docs"
 PUBLIC_DIR = HUB_ROOT / "docs-site" / "public"
-GENERATED_DIR = HUB_ROOT / "storage" / "generated"
+GENERATED_DIR = STORAGE_DIR / "generated"
 
 
 def refresh_hub_pages() -> None:
