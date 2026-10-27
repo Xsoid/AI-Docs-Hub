@@ -8,7 +8,9 @@ from pathlib import Path
 
 from mcp.server import McpServer
 from rag.config import ProjectConfig
+from rag.decision_engine import REGISTRY as DECISION_REGISTRY
 from rag.project_context import (
+    MANIFEST_BUDGET_BYTES,
     MAX_INSTRUCTION_FILES,
     build_project_context,
     discover_project_instructions,
@@ -122,6 +124,39 @@ class ProjectContextTests(unittest.TestCase):
                 "params": {"name": "get_project_context", "arguments": {"project": "other-project"}},
             })
             self.assertTrue(response["result"]["isError"])
+
+    def test_manifest_of_a_large_typical_project_fits_the_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for folder in ("", "app", "infra"):
+                (root / folder).mkdir(exist_ok=True)
+                (root / folder / "AGENTS.md").write_text("rules", encoding="utf-8")
+                (root / folder / "CLAUDE.md").write_text("rules", encoding="utf-8")
+            for number in range(15):
+                skill = root / ".agents" / "skills" / f"workflow-{number:02d}"
+                skill.mkdir(parents=True)
+                (skill / "SKILL.md").write_text(f"---\nname: workflow-{number:02d}\ndescription: {'Описание процесса. ' * 15}\n---\n# Body\n", encoding="utf-8")
+
+            context = build_project_context(make_config(root))
+
+            self.assertEqual(context["skill_discovery"]["count"], 15)
+            self.assertEqual(context["instruction_discovery"]["count"], 6)
+            self.assertLessEqual(len(json.dumps(context, ensure_ascii=False).encode("utf-8")), MANIFEST_BUDGET_BYTES)
+
+    def test_manifest_lists_skills_and_decisions_compactly(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill = root / ".agents" / "skills" / "ui-review"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("---\nname: ui-review\ndescription: Review UI\n---\n# UI\n", encoding="utf-8")
+
+            context = build_project_context(make_config(root))
+
+            self.assertEqual(context["skills"], [{"name": "ui-review", "path": ".agents/skills/ui-review/SKILL.md"}])
+            self.assertEqual(set(context["decision_engine"]), {"mode", "decisions"})
+            self.assertEqual(context["decision_engine"]["mode"], "shadow")
+            self.assertEqual(context["decision_engine"]["decisions"]["context.docs_ready"], False)
+            self.assertIn(context["decision_engine"]["decisions"]["context.primary_sources"], DECISION_REGISTRY["context.primary_sources"].allowed_values)
 
 
 if __name__ == "__main__":

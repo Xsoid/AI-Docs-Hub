@@ -18,6 +18,7 @@ from .sources import build_source_plan
 MAX_INSTRUCTION_FILES = 200
 MAX_INSTRUCTION_DIRECTORIES = 10_000
 MAX_SKILLS = 200
+MANIFEST_BUDGET_BYTES = 4096
 MAX_INSTRUCTION_BYTES = 250_000
 INSTRUCTION_NAMES = {"AGENTS.MD": "agents", "CLAUDE.MD": "claude"}
 PRUNED_DIRECTORIES = {
@@ -144,15 +145,8 @@ def _skill_catalog(config: ProjectConfig) -> tuple[list[dict[str, Any]], bool]:
     if not config.root.exists() or not config.root.is_dir():
         return [], False
     inventory = get_skill_inventory(config)
-    skills = [
-        {
-            "name": skill.get("name", ""),
-            "path": skill.get("path", ""),
-            "status": "available",
-            "description": str(skill.get("description", ""))[:500],
-        }
-        for skill in inventory.get("skills", [])
-    ]
+    # Names and paths only: agents load descriptions natively, and get_skill_inventory returns them.
+    skills = [{"name": skill.get("name", ""), "path": skill.get("path", "")} for skill in inventory.get("skills", [])]
     skills.sort(key=lambda item: str(item["path"]).casefold())
     return skills[:MAX_SKILLS], len(skills) > MAX_SKILLS
 
@@ -202,6 +196,7 @@ def build_project_context(config: ProjectConfig) -> dict[str, Any]:
     if _has_git_patch(config):
         next_tools.extend(["prepare_patch_review", "get_pre_publish_status"])
     decision_engine = DecisionEngine(config)
+    # Evaluated for shadow metrics; the manifest carries only the values. get_decision_status has the full status.
     context_decision = decision_engine.evaluate({
         "version": 1, "project": config.project, "namespace": config.namespace,
         "decision_id": "context.primary_sources",
@@ -240,7 +235,13 @@ def build_project_context(config: ProjectConfig) -> dict[str, Any]:
             "codebase_search": codebase["available"],
             "patch_review": True,
         },
-        "decision_engine": {"status": decision_engine.status(), "context_primary_source": context_decision, "docs_ready": readiness_decision},
+        "decision_engine": {
+            "mode": decision_engine.settings.mode,
+            "decisions": {
+                "context.primary_sources": context_decision["value"],
+                "context.docs_ready": readiness_decision["value"],
+            },
+        },
         "recommended_next_tools": next_tools,
     }
 

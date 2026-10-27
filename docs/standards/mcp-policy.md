@@ -48,6 +48,13 @@ Stdout зарезервирован для MCP JSON-RPC messages. Logs долж�
 
 `get_project_context` возвращает компактный read-only manifest одного namespace: profile, docs index/readiness status, bounded metadata root/nested `AGENTS.md` и `CLAUDE.md`, каталог skills без содержимого, quality/capability status, `context_fingerprint` и deterministic `recommended_next_tools`. Manifest не является dump документации и не preload-ит source files.
 
+Manifest должен оставаться в бюджете `MANIFEST_BUDGET_BYTES` (4096 байт UTF-8 JSON, `rag/project_context.py`) для крупного типичного проекта: 6 instruction files и 15 skills. Тест в `tests/test_project_context.py` падает при превышении. Чтобы держать бюджет:
+
+- skills перечисляются только как `name` и `path`. Описания возвращает `get_skill_inventory`;
+- `decision_engine` содержит только `mode` и значения решений `context.primary_sources` и `context.docs_ready`. Полный статус engine возвращает `get_decision_status`.
+
+Списки instructions и skills по-прежнему ограничены `MAX_INSTRUCTION_FILES` и `MAX_SKILLS` (по 200). Проект у этих пределов может превысить бюджет; `instruction_discovery` и `skill_discovery` показывают `count` и `truncated`.
+
 `get_decision_status` is a read-only diagnostic for the Local Decision Engine. It returns only provider, mode, supported decision ids and optional backend state. It cannot submit a prompt, enable a provider or enable auto mode. Decision metadata embedded in existing responses is bounded and does not grant a mutation or change a hard gate.
 
 `read_project_instruction` принимает только project-relative path, ранее найденный manifest discovery. Он не превращается в общий filesystem reader: применяются `safe_resolve`, configured/default excludes, project-root containment, secret scan и лимит `250_000` bytes; содержимое выдаётся только on-demand с `content_hash` и `truncated`.
