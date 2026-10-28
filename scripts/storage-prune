@@ -1,0 +1,51 @@
+#!/usr/bin/env python3.11
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from rag.config import STORAGE_DIR, load_project_configs  # noqa: E402
+from rag.storage_retention import find_orphans, remove_orphans  # noqa: E402
+
+
+def display(path: Path) -> str:
+    return f"storage/{path.relative_to(STORAGE_DIR).as_posix()}" if path.is_relative_to(STORAGE_DIR) else str(path)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Find and remove Hub storage of projects that have no project config.")
+    parser.add_argument("--apply", action="store_true", help="Delete the listed entries. Without it, only list them.")
+    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    args = parser.parse_args()
+
+    # An invalid project config raises here, so nothing is deleted while project ids are uncertain.
+    known_projects = set(load_project_configs())
+    orphans = find_orphans(known_projects)
+    removed = remove_orphans(orphans) if args.apply else []
+    total = sum(item["bytes"] for item in orphans)
+
+    if args.json:
+        print(json.dumps({
+            "mode": "apply" if args.apply else "dry-run",
+            "orphan_projects": sorted({item["project"] for item in orphans}),
+            "entries": [{"project": item["project"], "path": display(item["path"]), "bytes": item["bytes"]} for item in orphans],
+            "bytes": total,
+            "removed": [display(path) for path in removed],
+        }, ensure_ascii=False, indent=2))
+        return 0
+    if not orphans:
+        print("no orphan project storage")
+        return 0
+    for item in orphans:
+        print(f"{item['project']:<24} {item['bytes'] / 1024 / 1024:8.1f} MB  {display(item['path'])}")
+    print(f"total: {len(orphans)} entries, {total / 1024 / 1024:.1f} MB")
+    print(f"removed: {len(removed)} entries" if args.apply else "dry-run: nothing deleted; run with --apply to delete")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

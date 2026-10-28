@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from rag.runtime_logs import prune_logs, rotate_stream
+from rag.runtime_logs import rotate_stream
 
 
 class RotateStreamTest(unittest.TestCase):
@@ -48,24 +48,6 @@ class RotateStreamTest(unittest.TestCase):
         self.assertEqual(archives, ["runtime.out.log.1", "runtime.out.log.2"])
         self.assertTrue(Path(f"{self.log}.1").read_bytes().startswith(b"gen3"))
         self.assertTrue(Path(f"{self.log}.2").read_bytes().startswith(b"gen2"))
-
-
-class PruneLogsTest(unittest.TestCase):
-    def test_keeps_newest_job_logs_and_ignores_other_files(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            for stamp in ("20260101T000000Z", "20260201T000000Z", "20260301T000000Z"):
-                (root / f"apply-fix-{stamp}-rag.reindex-demo-1.log").write_text("job\n", encoding="utf-8")
-            (root / "hub-runtime.out.log").write_text("runtime\n", encoding="utf-8")
-
-            removed = prune_logs(root, "apply-fix-*.log", keep=2)
-
-            self.assertEqual([path.name for path in removed], ["apply-fix-20260101T000000Z-rag.reindex-demo-1.log"])
-            self.assertEqual(sorted(path.name for path in root.iterdir()), [
-                "apply-fix-20260201T000000Z-rag.reindex-demo-1.log",
-                "apply-fix-20260301T000000Z-rag.reindex-demo-1.log",
-                "hub-runtime.out.log",
-            ])
 
 
 if __name__ == "__main__":

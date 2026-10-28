@@ -43,11 +43,3 @@ def rotate_stream(fd: int, path: Path, max_bytes: int = MAX_RUNTIME_LOG_BYTES, a
     finally:
         os.close(fresh)
     return True
-
-
-def prune_logs(directory: Path, pattern: str, keep: int) -> list[Path]:
-    """Delete all but the newest `keep` files matching pattern; names sort chronologically."""
-    stale = sorted(directory.glob(pattern))[:-keep] if keep > 0 else sorted(directory.glob(pattern))
-    for path in stale:
-        path.unlink(missing_ok=True)
-    return stale

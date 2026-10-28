@@ -69,7 +69,7 @@ docs/**/*.md</textarea></div><div class="field"><label>Дополнительн�
 </main>
 <script is:inline>
   const fixApiBase='http://127.0.0.1:4322';
-  const systemDefs={runtime:['RT','Runtime'],'docs-site':['UI','Docs site'],repository:['HC','Repository health'],mcp:['MC','MCP bridge'],watcher:['WA','Watcher']};
+  const systemDefs={runtime:['RT','Runtime'],'docs-site':['UI','Docs site'],repository:['HC','Repository health'],mcp:['MC','MCP bridge'],watcher:['WA','Watcher'],storage:['ST','Storage']};
   const serviceDefs=[['rag','Docs RAG','Проектный индекс документов'],['generated','Generated context','Project page и llms context'],['mkdocs','Source discovery','MkDocs adapter и effective paths'],['docs-readiness','Docs readiness','Покрытие и рекомендации'],['skill-intelligence','Skill Intelligence','Свежесть skills audit'],['project-lifecycle','Project lifecycle','Patch gate и reviews'],['codebase-memory','Code graph','Граф кода, MCP и routing rules']];
   const hero=document.getElementById('hero'),refreshButton=document.getElementById('refresh'),operationPanel=document.getElementById('operationPanel'); let refreshing=false,fixing=false,saving=false;
   function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n}

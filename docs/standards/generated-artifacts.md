@@ -14,3 +14,27 @@ Generated-артефакт нельзя редактировать вручну�
 `docs-site/src/content/docs/index.md` and the tracked pages in `hub/` are site-only entry pages. They can contain route-specific navigation and short descriptions. They must link to canonical `docs/` content for rules and procedures.
 
 Run `make hub-pages` after a Hub-documentation change. The generator fails before an output collision or a non-generated page overwrite. It removes only obsolete pages that contain its marker and are inside managed Hub or standards directories.
+
+## Политика Хранения `storage/`
+
+| Каталог | Содержимое | Политика хранения |
+| --- | --- | --- |
+| `index/` | `{project}.json` - RAG index, `{project}_log.jsonl` - operation log | index перезаписывается при индексации; operation log дописывается без ограничения |
+| `decision-engine/{project}/` | cache решений и `metrics.json` | не более 200 cache-файлов на проект (`MAX_CACHE_FILES`) |
+| `project-lifecycle/{project}/` | init, quality profile, `reviews/{fingerprint}/` | без ограничения: каталог `reviews/` растет с каждым новым fingerprint |
+| `skill-intelligence/{project}/` | `audit.json`, `inventory.json` | перезаписываются |
+| `context-snapshots/{project}/` | context snapshots | последние 50 на проект (`MAX_CONTEXT_SNAPSHOTS`, `rag/context_freshness.py`), лишние удаляются при каждом `capture_project_context` |
+| `codebase-memory/` | `{project}.db` и `-shm`/`-wal`, общие `_config.db` и `logs/` | управляет Codebase Memory |
+| `runtime/` | статус runtime, `codebase-memory/{project}.status.json`, `fixes/` jobs, `bin/` | статусы перезаписываются; `fixes/` растет без ограничения |
+| `logs/` | runtime и `apply-fix` logs | ротация, см. `docs/operations/runtime-observability.md` |
+| `mcp-audit/` | дневные JSONL | `MCP_AUDIT_RETENTION_DAYS`, по умолчанию 30 дней |
+| `generated/` | `llms*.txt`, report | перезаписываются |
+
+Если project config удален, его project-scoped записи остаются. `rag/storage_retention.py` перечисляет такие места (`project_locations()`):
+
+- `index/`;
+- `decision-engine/`, `project-lifecycle/`, `skill-intelligence/`, `context-snapshots/`;
+- `codebase-memory/{project}.db*`;
+- `runtime/codebase-memory/{project}.status.json`.
+
+`make storage-prune` показывает такие записи и ничего не удаляет. `python3.11 scripts/storage-prune --apply` удаляет их. Без `--apply` удаления нет. Если хотя бы один project config невалиден, команда завершается ошибкой и ничего не удаляет. `make hub-status` и `/status/` показывают orphan storage как warning компонента `storage`.

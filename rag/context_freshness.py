@@ -27,10 +27,13 @@ from .project_lifecycle import (
 )
 from .project_context import discover_project_instructions
 from .skill_intelligence import get_skill_inventory
+from .storage_retention import keep_newest
 
 
 SCHEMA_VERSION = 1
 SNAPSHOT_DIR = STORAGE_DIR / "context-snapshots"
+# Count-based retention keeps every recent snapshot an agent may still check.
+MAX_CONTEXT_SNAPSHOTS = 50
 SNAPSHOT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 COMPONENT_NAMES = ("git", "config", "instructions", "docs_index", "skills", "codebase_index")
 
@@ -269,6 +272,7 @@ def capture_project_context(project: str | ProjectConfig) -> dict[str, Any]:
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(path)
+    keep_newest(path.parent, "*.json", MAX_CONTEXT_SNAPSHOTS)
     snapshot_path = str(path.relative_to(HUB_ROOT)) if path.is_relative_to(HUB_ROOT) else None
     return {**snapshot, "snapshot_path": snapshot_path}
 

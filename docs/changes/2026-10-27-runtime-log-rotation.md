@@ -2,7 +2,7 @@
 
 ## Что Изменилось
 
-- Новый модуль `rag/runtime_logs.py` владеет путями `storage/logs/`, лимитами и функциями `rotate_stream` и `prune_logs`. `scripts/hub-launchd`, `scripts/hub-status`, `scripts/hub-dev` и `scripts/apply-fix` берут пути из него.
+- Новый модуль `rag/runtime_logs.py` владеет путями `storage/logs/`, лимитами и функцией `rotate_stream`. `scripts/hub-launchd`, `scripts/hub-status`, `scripts/hub-dev` и `scripts/apply-fix` берут пути из него.
 - `scripts/hub-dev` ротирует `hub-runtime.out.log` и `hub-runtime.err.log` по размеру: 10 МБ на файл, 3 архива.
 - `scripts/apply-fix` хранит последние 50 файлов `apply-fix-*.log`.
 - `make hub-logs` с `-f` использует `tail -F` и продолжает показ после ротации.

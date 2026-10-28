@@ -189,5 +189,7 @@ The default provider is offline rules in shadow mode. `get_decision_status` is t
 | Команда | Назначение |
 | --- | --- |
 | `make clean-cache` | Удалить `docs-site/dist`, npm cache, generated files и Python `__pycache__`. |
+| `make storage-prune` | Показать storage проектов без project config. Ничего не удаляет. |
+| `python3.11 scripts/storage-prune --apply` | Удалить storage проектов без project config. |
 
 Удаление `storage/index/{project}.json` удаляет локальный RAG index и не трогает проект.

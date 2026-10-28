@@ -3,7 +3,7 @@ PROJECT ?= example-project
 SCOPE ?= working
 KIND ?= code
 
-.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test test codebase-memory-install codebase-memory-status codebase-memory-index claude-mcp-status claude-mcp-install claude-mcp-install-hub healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs
+.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test test codebase-memory-install codebase-memory-status codebase-memory-index claude-mcp-status claude-mcp-install claude-mcp-install-hub healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs storage-prune
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -168,6 +168,9 @@ decision-benchmark:
 
 logs:
 	$(PYTHON) scripts/read-logs --project "$(PROJECT)"
+
+storage-prune:
+	$(PYTHON) scripts/storage-prune
 
 clean-cache:
 	rm -rf docs-site/dist .npm-cache storage/generated/*

@@ -25,6 +25,7 @@ from rag.health import run_healthcheck  # noqa: E402
 from rag.sources import build_source_plan  # noqa: E402
 from rag.skill_intelligence import get_stored_skill_intelligence_status  # noqa: E402
 from rag.project_lifecycle import lifecycle_status  # noqa: E402
+from rag.storage_retention import find_orphans  # noqa: E402
 from rag.runtime_logs import RUNTIME_STDERR_LOG as LAUNCHD_STDERR_LOG, RUNTIME_STDOUT_LOG as LAUNCHD_STDOUT_LOG  # noqa: E402
 
 DOCS_URL = "http://localhost:4321/"
@@ -1238,6 +1239,20 @@ def check_watcher(stale_after: float) -> Component:
     )
 
 
+def check_storage() -> Component:
+    try:
+        orphans = find_orphans(set(load_project_configs()))
+    except Exception as exc:  # noqa: BLE001
+        return Component("storage", "error", f"failed to inspect project storage: {exc}", required=False)
+    projects = sorted({item["project"] for item in orphans})
+    total = sum(item["bytes"] for item in orphans)
+    details = {"orphan_projects": projects, "orphan_entries": len(orphans), "orphan_bytes": total, "prune_command": "python3.11 scripts/storage-prune"}
+    if not orphans:
+        return Component("storage", "ok", "no orphan project storage", required=False, details=details)
+    message = f"{len(projects)} project(s) without config keep {total / 1024 / 1024:.1f} MB: {', '.join(projects)}"
+    return Component("storage", "warning", message, required=False, details=details)
+
+
 def overall_status(components: list[Component]) -> tuple[str, int]:
     required_failed = any(
         component.required and component.status in {"down", "error"}
@@ -1270,6 +1285,8 @@ def render_human(overall: str, components: list[Component]) -> str:
         next_steps.append("inspect repository health: make healthcheck")
     if by_name["watcher"].status != "ok":
         next_steps.append("watcher heartbeat is produced by make hub-dev")
+    if by_name["storage"].status == "warning":
+        next_steps.append("review orphan project storage: make storage-prune")
     lines.extend(["", "runtime:", f"{HUB_DEV_STATUS_PATH.relative_to(ROOT)}"])
     if next_steps:
         lines.append("")
@@ -1315,6 +1332,7 @@ def main() -> int:
         check_mcp(timeout=args.timeout),
         codebase_memory,
         check_watcher(stale_after=args.watcher_stale_after),
+        check_storage(),
     ]
     overall, exit_code = overall_status(components)
     if args.json:
