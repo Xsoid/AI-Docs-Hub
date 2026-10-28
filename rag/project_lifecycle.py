@@ -13,6 +13,7 @@ from typing import Any, Iterable
 
 from .config import HUB_ROOT, STORAGE_DIR, ProjectConfig, get_project_config, is_unbound_example_config
 from .security import is_excluded, normalize_rel, safe_resolve, scan_text_for_secrets
+from .storage_retention import keep_newest
 
 
 LIFECYCLE_STORAGE_DIR = STORAGE_DIR / "project-lifecycle"
@@ -30,6 +31,7 @@ DEFAULT_TIMEOUT = 300.0
 AGENTS_BEGIN = "<!-- BEGIN AI DOCS HUB PROJECT LIFECYCLE -->"
 AGENTS_END = "<!-- END AI DOCS HUB PROJECT LIFECYCLE -->"
 SCHEMA_VERSION = 1
+MAX_REVIEW_FINGERPRINTS = 50
 
 
 class LifecycleError(RuntimeError):
@@ -49,6 +51,13 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(path)
+
+
+def _write_review(project: str, fingerprint: str, name: str, payload: dict[str, Any]) -> None:
+    """Store a review record; the write makes its fingerprint the newest, so retention keeps it."""
+    reviews = _storage_dir(project) / "reviews"
+    _write_json(reviews / fingerprint / name, payload)
+    keep_newest(reviews, "*", MAX_REVIEW_FINGERPRINTS)
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -437,7 +446,7 @@ def verify_patch(config: str | ProjectConfig, *, scope: str = "working", base: s
         "completed_at": utc_now(),
     }
     if persist:
-        _write_json(_storage_dir(project_config.project) / "reviews" / fingerprint["fingerprint"] / "verification.json", result)
+        _write_review(project_config.project, fingerprint["fingerprint"], "verification.json", result)
     return result
 
 
@@ -540,7 +549,7 @@ def record_review(config: str | ProjectConfig, *, kind: str, scope: str, base: s
         "finding_count": len(normalized),
         "security_language_policy": "no absolute security guarantee" if kind == "security" else None,
     }
-    _write_json(_storage_dir(project_config.project) / "reviews" / fingerprint / f"{kind}-review.json", record)
+    _write_review(project_config.project, fingerprint, f"{kind}-review.json", record)
     return record
 
 

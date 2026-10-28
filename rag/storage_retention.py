@@ -85,11 +85,14 @@ def remove_orphans(orphans: Iterable[dict[str, Any]], locations: Iterable[Projec
 
 
 def keep_newest(directory: Path, pattern: str, keep: int) -> list[Path]:
-    """Delete all but the newest `keep` files matching pattern, ordered by modification time, then name."""
+    """Delete all but the newest `keep` entries matching pattern, ordered by modification time, then name."""
     if not directory.is_dir():
         return []
     files = sorted(directory.glob(pattern), key=lambda path: (path.stat().st_mtime_ns, path.name))
     stale = files[:-keep] if keep > 0 else files
     for path in stale:
-        path.unlink(missing_ok=True)
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
     return stale

@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import unittest
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -106,6 +107,24 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertNotEqual(stale["fingerprint"], fingerprint)
         self.assertEqual(stale["state"], "VERIFYING")
         self.assertFalse(stale["publishable"])
+
+    def test_review_retention_keeps_current_fingerprint(self) -> None:
+        (self.root / "app.py").write_text("print('changed')\n", encoding="utf-8")
+        reviews = self.storage / "synthetic-lifecycle" / "reviews"
+        with patch("rag.project_lifecycle.LIFECYCLE_STORAGE_DIR", self.storage), patch("rag.project_lifecycle.MAX_REVIEW_FINGERPRINTS", 2):
+            fingerprint = verify_patch(self.config)["fingerprint"]
+            os.utime(reviews / fingerprint, (1_000_000, 1_000_000))
+            for index in range(3):
+                stale = reviews / f"stale-{index}"
+                stale.mkdir()
+                (stale / "verification.json").write_text("{}", encoding="utf-8")
+                os.utime(stale, (2_000_000 + index, 2_000_000 + index))
+            record_review(self.config, kind="code", scope="working", base=None, fingerprint=fingerprint, status="passed", findings=[])
+            record_review(self.config, kind="security", scope="working", base=None, fingerprint=fingerprint, status="passed", findings=[])
+            status = pre_publish_status(self.config)
+
+        self.assertEqual(status["state"], "PUBLISHABLE")
+        self.assertEqual(sorted(path.name for path in reviews.iterdir()), sorted([fingerprint, "stale-2"]))
 
     def test_cli_record_review_requires_current_fingerprint(self) -> None:
         (self.root / "app.py").write_text("print('changed')\n", encoding="utf-8")

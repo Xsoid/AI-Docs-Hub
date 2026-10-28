@@ -18,6 +18,7 @@ from rag.runtime_logs import APPLY_FIX_LOG_PATTERN, LOG_DIR, MAX_APPLY_FIX_LOGS 
 from rag.storage_retention import keep_newest  # noqa: E402
 
 FIX_DIR = ROOT / "storage" / "runtime" / "fixes"
+MAX_FIX_JOBS = 50
 LAUNCHD_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / "local.ai-docs-hub.runtime.plist"
 
 ACTION_DESCRIPTIONS = {
@@ -74,8 +75,9 @@ def job_path(job_id: str) -> Path:
 def write_job(job_id: str, payload: dict[str, Any]) -> None:
     FIX_DIR.mkdir(parents=True, exist_ok=True)
     path = job_path(job_id)
+    created = not path.exists()
     current: dict[str, Any] = {}
-    if path.exists():
+    if not created:
         try:
             current = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -85,6 +87,8 @@ def write_job(job_id: str, payload: dict[str, Any]) -> None:
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     tmp.replace(path)
+    if created:
+        keep_newest(FIX_DIR, "*.json", MAX_FIX_JOBS)
 
 
 def command_result(command: list[str], *, timeout: float) -> dict[str, Any]:

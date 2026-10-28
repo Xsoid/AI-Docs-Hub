@@ -19,13 +19,13 @@ Run `make hub-pages` after a Hub-documentation change. The generator fails befor
 
 | Каталог | Содержимое | Политика хранения |
 | --- | --- | --- |
-| `index/` | `{project}.json` - RAG index, `{project}_log.jsonl` - operation log | index перезаписывается при индексации; operation log дописывается без ограничения |
+| `index/` | `{project}.json` - RAG index, `{project}_log.jsonl` - operation log | index перезаписывается при индексации; operation log хранит последние 1000 записей (`MAX_OPERATION_LOG_ENTRIES`, `rag/logging.py`), старые строки удаляются при каждой записи |
 | `decision-engine/{project}/` | cache решений и `metrics.json` | не более 200 cache-файлов на проект (`MAX_CACHE_FILES`) |
-| `project-lifecycle/{project}/` | init, quality profile, `reviews/{fingerprint}/` | без ограничения: каталог `reviews/` растет с каждым новым fingerprint |
+| `project-lifecycle/{project}/` | init, quality profile, `reviews/{fingerprint}/` | `reviews/` хранит последние 50 fingerprint на проект (`MAX_REVIEW_FINGERPRINTS`, `rag/project_lifecycle.py`). Лишние удаляются при каждой записи verification или review. Записанный fingerprint становится самым новым, поэтому review текущего patch не удаляется |
 | `skill-intelligence/{project}/` | `audit.json`, `inventory.json` | перезаписываются |
 | `context-snapshots/{project}/` | context snapshots | последние 50 на проект (`MAX_CONTEXT_SNAPSHOTS`, `rag/context_freshness.py`), лишние удаляются при каждом `capture_project_context` |
 | `codebase-memory/` | `{project}.db` и `-shm`/`-wal`, общие `_config.db` и `logs/` | управляет Codebase Memory |
-| `runtime/` | статус runtime, `codebase-memory/{project}.status.json`, `fixes/` jobs, `bin/` | статусы перезаписываются; `fixes/` растет без ограничения |
+| `runtime/` | статус runtime, `codebase-memory/{project}.status.json`, `fixes/` jobs, `bin/` | статусы перезаписываются; `fixes/` хранит последние 50 job JSON (`MAX_FIX_JOBS`, `scripts/apply-fix`), лишние удаляются при создании нового job |
 | `logs/` | runtime и `apply-fix` logs | ротация, см. `docs/operations/runtime-observability.md` |
 | `mcp-audit/` | дневные JSONL | `MCP_AUDIT_RETENTION_DAYS`, по умолчанию 30 дней |
 | `generated/` | `llms*.txt`, report | перезаписываются |

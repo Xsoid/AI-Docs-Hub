@@ -99,7 +99,7 @@ Local-only layout:
         code-review.json
         security-review.json
 
-Эти paths ignored. В Hub Git не попадают reports, diff/source snippets, реальные project paths или generated AGENTS content подключенных проектов.
+Эти paths ignored. Сколько fingerprint хранится в `reviews/`, описывает `docs/standards/generated-artifacts.md`. В Hub Git не попадают reports, diff/source snippets, реальные project paths или generated AGENTS content подключенных проектов.
 
 ## Git hooks
 

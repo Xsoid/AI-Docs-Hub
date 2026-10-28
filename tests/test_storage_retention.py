@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from unittest.mock import patch
 
@@ -28,6 +30,20 @@ class KeepNewestTest(unittest.TestCase):
 
     def test_missing_directory_is_a_no_op(self) -> None:
         self.assertEqual(keep_newest(Path("/nonexistent/hub-storage"), "*.json", keep=1), [])
+
+    def test_removes_stale_directories_with_their_contents(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for age, name in enumerate(("newest", "middle", "oldest")):
+                (root / name).mkdir()
+                (root / name / "review.json").write_text("{}", encoding="utf-8")
+                os.utime(root / name, (1_000_000 - age, 1_000_000 - age))
+
+            removed = keep_newest(root, "*", keep=2)
+
+            self.assertEqual([path.name for path in removed], ["oldest"])
+            self.assertEqual(sorted(path.name for path in root.iterdir()), ["middle", "newest"])
+
 
 class OrphanStorageTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -103,6 +119,45 @@ class ContextSnapshotRetentionTest(unittest.TestCase):
             kept = sorted(path.stem for path in (snapshots / "retention-project").glob("*.json"))
             self.assertEqual(len(kept), 3)
             self.assertIn(ids[-1], kept)
+
+
+class OperationLogRetentionTest(unittest.TestCase):
+    def test_log_keeps_a_bounded_number_of_newest_entries(self) -> None:
+        from rag import logging as operation_log
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(operation_log, "INDEX_DIR", Path(tmp)), patch.object(operation_log, "MAX_OPERATION_LOG_ENTRIES", 3):
+                for step in range(5):
+                    operation_log.log_operation("retention-project", "step", {"step": step})
+                entries = operation_log.read_operation_log("retention-project")
+
+        self.assertEqual([entry["step"] for entry in entries], [4, 3, 2])
+
+
+def load_apply_fix():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "apply-fix"
+    loader = SourceFileLoader("apply_fix_under_test", str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    if spec is None:
+        raise RuntimeError("could not load apply-fix")
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+class FixJobRetentionTest(unittest.TestCase):
+    def test_new_job_keeps_a_bounded_number_of_job_files(self) -> None:
+        apply_fix = load_apply_fix()
+        with tempfile.TemporaryDirectory() as tmp:
+            fixes = Path(tmp)
+            with patch.object(apply_fix, "FIX_DIR", fixes), patch.object(apply_fix, "MAX_FIX_JOBS", 2):
+                for index in range(4):
+                    apply_fix.write_job(f"job-{index}", {"status": "queued"})
+                    os.utime(fixes / f"job-{index}.json", (1_000_000 + index, 1_000_000 + index))
+                apply_fix.write_job("job-3", {"status": "ok"})
+
+            self.assertEqual(sorted(path.name for path in fixes.iterdir()), ["job-2.json", "job-3.json"])
+            self.assertEqual(json.loads((fixes / "job-3.json").read_text(encoding="utf-8"))["status"], "ok")
 
 
 class StoragePruneCliTest(unittest.TestCase):

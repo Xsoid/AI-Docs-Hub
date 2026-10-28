@@ -31,5 +31,4 @@ make hub-status
 
 ## Follow-Up
 
-- `project-lifecycle/{project}/reviews/` и `runtime/fixes/` растут без ограничения. В одном проекте `reviews/` содержит 268 каталогов, 3 МБ.
-- Operation log `index/{project}_log.jsonl` дописывается без ограничения.
+- Retention для `project-lifecycle/{project}/reviews/`, `runtime/fixes/` и operation log описывает `docs/changes/2026-10-28-review-and-log-retention.md`.

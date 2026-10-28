@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .config import HUB_ROOT, INDEX_DIR
+
+MAX_OPERATION_LOG_ENTRIES = 1000
 
 
 def utc_now() -> str:
@@ -37,6 +40,17 @@ def log_operation(project: str, operation: str, data: dict[str, Any]) -> None:
     
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    _keep_newest_lines(log_path, MAX_OPERATION_LOG_ENTRIES)
+
+
+def _keep_newest_lines(path: Path, keep: int) -> None:
+    """Rewrite the log atomically with only its newest `keep` lines."""
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    if len(lines) <= keep:
+        return
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text("".join(lines[-keep:]), encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def read_operation_log(project: str, limit: int | None = None) -> list[dict[str, Any]]:
