@@ -39,11 +39,17 @@ SECRET_PATTERNS = [
     (
         "assignment_secret",
         re.compile(
+            # A path separator or a comparison is not an assignment
+            # (`Session::new(url)`, `token == other`); `:=` is one.
             # Code is not a value: a call (`password: z.string().min(8)`), or a
-            # digit-free identifier that closes a call (`api_key=api_key)`,
-            # `session: URLSession) -> Void`).
-            r"(?i)\b(api[_-]?key|secret|token|password|passwd|credential|cookie|session)\b\s*[:=]\s*"
-            r"(?![A-Za-z_$][\w$.]*\(|[A-Za-z_]+\))['\"]?[^\s'\"]{8,}"
+            # digit-free identifier, member path, or type that a delimiter or
+            # the line end closes (`api_key=api_key)`, `password: password,`,
+            # `password: credentials.password`, `password: Option<AccessToken>,`,
+            # `_ password: String?,`, `session: URLSession) -> Void`).
+            r"(?i)\b(api[_-]?key|secret|token|password|passwd|credential|cookie|session)\b\s*(?::=|[:=])(?![:=])\s*"
+            r"(?![A-Za-z_$][\w$.]*\("
+            r"|[A-Za-z_$][A-Za-z_$.:]*(?:<[^'\"\d]*>)?[?!]?(?:[,;)\]}]|\s*$|\s+->|\s*\{))"
+            r"['\"]?[^\s'\"]{8,}"
         ),
     ),
 ]

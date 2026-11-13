@@ -49,6 +49,25 @@ class SecretPatternTests(unittest.TestCase):
         self.assertEqual(scan_text_for_secrets("client = Client(api_key=gemini_api_key)"), [])
         self.assertEqual(scan_text_for_secrets("func load(session: URLSession) -> Void"), [])
 
+    def test_types_paths_and_references_are_not_assigned_secrets(self) -> None:
+        for line in (
+            "    password: Option<AccessToken>,",
+            "    _ url: UnsafePointer<CChar>?, _ login: UnsafePointer<CChar>?, _ password: UnsafePointer<CChar>?,",
+            "    static func set(_ password: String?, user: String, for connectionID: String) throws {",
+            "    let Ok(mut session) = qadren_core::ispmanager::Session::new(url, login, password) else {",
+            "            match ispmanager::Session::new(url, login, password)",
+            "        connectionID: entry.id, login: credentials.login, password: credentials.password",
+            "    Request(connection_id: id, login: login, password: password, database_passwords: passwords)",
+            "if token == expectedToken {",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(scan_text_for_secrets(line), [])
+
+    def test_go_short_assignment_and_quoted_words_are_detected(self) -> None:
+        for line in ('password := "synthetic-value-123"', 'password: "plainwordsecret",', "secret=synthetic-value-abc;"):
+            with self.subTest(line=line):
+                self.assertEqual(scan_text_for_secrets(line)[0]["kind"], "assignment_secret")
+
     def test_literal_assigned_secrets_are_still_detected(self) -> None:
         for line in ('PASSWORD="synthetic-value-123"', "api_key=synthetic1234567890", "token: synthetic.value-123", "api_key=synthetic1234567890)"):
             with self.subTest(line=line):
