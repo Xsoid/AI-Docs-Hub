@@ -170,7 +170,7 @@ The default provider is offline rules in shadow mode. `get_decision_status` is t
 | `make codebase-memory-status PROJECT=name` | Проверить binary, graph, project-scoped MCP config, managed agent rules и `fully_connected`. |
 | `python3.11 scripts/apply-fix --action codebase-memory.index --project name` | Идемпотентно подготовить `.cbmignore`, построить graph, настроить отдельный MCP server и routing rules. |
 
-После первого onboarding или изменения MCP config перезапустите Codex. Для Claude Code выполните `make claude-mcp-install PROJECT=name`. Полная модель использования и список read-only tools описаны в `docs/operations/codebase-memory.md`.
+После первого onboarding или изменения MCP config перезапустите Codex. Для Claude Code выполните `make claude-mcp-install PROJECT=name`, для Kimi Code — `make kimi-mcp-install PROJECT=name`. Полная модель использования и список read-only tools описаны в `docs/operations/codebase-memory.md`.
 
 ## Claude Code
 
@@ -183,6 +183,18 @@ The default provider is offline rules in shadow mode. `get_decision_status` is t
 | `python3.11 scripts/claude-mcp remove --project name --write` | Удалить только Hub-managed entries проекта. |
 
 После записи с `restart_required=true` перезапустите Claude Code. Правила записи описаны в `docs/operations/claude-code.md`.
+
+## Kimi Code
+
+| Команда | Назначение |
+| --- | --- |
+| `make kimi-mcp-status PROJECT=name` | Проверить MCP registration проекта в user-level `~/.kimi-code/mcp.json`. |
+| `make kimi-mcp-install PROJECT=name` | Зарегистрировать `<project>_docs` и, при наличии binary и graph, `codebase_<project>`. |
+| `make kimi-mcp-install-hub` | Зарегистрировать unscoped `local_ai_docs_hub` для checkout Hub. |
+| `python3.11 scripts/kimi-mcp configure --all` | Показать dry-run для всех подключенных проектов; `--write` применяет. |
+| `python3.11 scripts/kimi-mcp remove --project name --write` | Удалить только Hub-managed entries проекта. |
+
+После записи с `restart_required=true` начните новую сессию Kimi Code. Правила записи описаны в `docs/operations/kimi-code.md`.
 
 ## Cleanup
 

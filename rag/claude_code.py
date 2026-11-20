@@ -1,20 +1,26 @@
 from __future__ import annotations
 
-import json
 import os
-import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
-from .config import HUB_ROOT, ProjectConfig, get_project_config, is_placeholder_path, load_project_configs
-
-
-HUB_SERVER = "local_ai_docs_hub"
-DOCS_SERVER_SCRIPT = HUB_ROOT / "mcp" / "server.py"
-CODEBASE_SERVER_SCRIPT = HUB_ROOT / "mcp" / "codebase_memory_proxy.py"
-DEFAULT_CODEBASE_BINARY = HUB_ROOT / "storage" / "runtime" / "bin" / "codebase-memory-mcp"
-DEFAULT_CODEBASE_CACHE = HUB_ROOT / "storage" / "codebase-memory"
+from .config import HUB_ROOT, ProjectConfig, get_project_config, is_placeholder_path
+from .mcp_clients import (  # noqa: F401  (re-exported for existing imports)
+    CODEBASE_SERVER_SCRIPT,
+    DEFAULT_CODEBASE_BINARY,
+    DEFAULT_CODEBASE_CACHE,
+    DOCS_SERVER_SCRIPT,
+    HUB_SERVER,
+    atomic_write_json,
+    codebase_cache_dir,
+    codebase_memory_available,
+    codebase_server_name,
+    configured_projects,
+    docs_server_name,
+    is_hub_entry,
+    read_json_object,
+    stdio_entry,
+)
 
 
 class ClaudeConfigError(RuntimeError):
@@ -26,31 +32,12 @@ def claude_config_path() -> Path:
     return (Path(configured).expanduser() if configured else Path.home()) / ".claude.json"
 
 
-def _slug(project: str) -> str:
-    return "".join(char if char.isalnum() else "_" for char in project).strip("_")
-
-
-def docs_server_name(project: str) -> str:
-    return f"{_slug(project)}_docs"
-
-
-def codebase_server_name(project: str) -> str:
-    return f"codebase_{_slug(project)}"
-
-
 def _codebase_cache_dir() -> Path:
-    return Path(os.environ.get("CBM_CACHE_DIR", DEFAULT_CODEBASE_CACHE)).expanduser()
-
-
-def codebase_memory_available(project: str) -> bool:
-    """Codebase Memory is registered only when the binary exists and the project graph is built."""
-    configured = os.environ.get("CODEBASE_MEMORY_BIN", "").strip()
-    binary = Path(configured).expanduser() if configured else DEFAULT_CODEBASE_BINARY
-    return binary.is_file() and (_codebase_cache_dir() / f"{project}.db").is_file()
+    return codebase_cache_dir()
 
 
 def _stdio(script: Path, *args: str, env: dict[str, str] | None = None) -> dict[str, Any]:
-    return {"type": "stdio", "command": sys.executable, "args": [str(script), *args], "env": env or {}}
+    return stdio_entry(script, *args, env=env, typed=True)
 
 
 def desired_servers(project: str | None, *, codebase_memory: bool | None = None) -> dict[str, dict[str, Any]]:
@@ -64,38 +51,15 @@ def desired_servers(project: str | None, *, codebase_memory: bool | None = None)
 
 
 def _is_hub_entry(entry: Any) -> bool:
-    if not isinstance(entry, dict) or not isinstance(entry.get("args"), list) or not entry["args"]:
-        return False
-    return str(entry["args"][0]) in {str(DOCS_SERVER_SCRIPT), str(CODEBASE_SERVER_SCRIPT)}
+    return is_hub_entry(entry)
 
 
 def _read_config(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise ClaudeConfigError(f"{path} is not valid JSON; refusing to modify it") from exc
-    if not isinstance(data, dict):
-        raise ClaudeConfigError(f"{path} must contain a JSON object")
-    return data
+    return read_json_object(path, ClaudeConfigError)
 
 
 def _write_config(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
-    handle, temp_name = tempfile.mkstemp(prefix=".claude.json.", dir=str(path.parent))
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as stream:
-            json.dump(data, stream, ensure_ascii=False, indent=2)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.chmod(temp_name, mode)
-        os.replace(temp_name, path)
-    except BaseException:
-        Path(temp_name).unlink(missing_ok=True)
-        raise
+    atomic_write_json(path, data, temp_prefix=".claude.json.")
 
 
 def _target(project: str | None) -> tuple[str | None, Path]:
@@ -174,12 +138,9 @@ def configure_claude_mcp(project: str | None, *, write: bool = False, remove: bo
     }
 
 
-def configured_projects() -> list[str]:
-    return sorted(name for name, config in load_project_configs().items() if not is_placeholder_path(config.root_source) and config.root.is_dir())
-
-
 def main(argv: list[str] | None = None) -> int:
     import argparse
+    import json
 
     parser = argparse.ArgumentParser(description="Register AI Docs Hub MCP servers for Claude Code (local scope)")
     parser.add_argument("command", choices=["status", "configure", "remove"])

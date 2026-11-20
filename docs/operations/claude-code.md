@@ -1,11 +1,12 @@
 # Подключение Claude Code
 
-Hub поддерживает два агентских клиента: Codex и Claude Code. Оба клиента используют одни и те же MCP servers, project scope, confirmation rules и Project Lifecycle gate. Различается только место регистрации MCP servers.
+Hub поддерживает трёх агентских клиентов: Codex, Claude Code и Kimi Code. Все клиенты используют одни и те же MCP servers, project scope, confirmation rules и Project Lifecycle gate. Различается только место регистрации MCP servers.
 
 | Клиент | Регистрация MCP | Команда Hub |
 | --- | --- | --- |
 | Codex | `~/.codex/config.toml` | точечная правка; Codebase Memory через `codebase-memory.index` |
 | Claude Code | local scope в `~/.claude.json` | `scripts/claude-mcp` |
+| Kimi Code | user-level `~/.kimi-code/mcp.json` | `scripts/kimi-mcp` |
 
 ## Регистрация
 

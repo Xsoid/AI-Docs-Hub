@@ -3,7 +3,7 @@ PROJECT ?= example-project
 SCOPE ?= working
 KIND ?= code
 
-.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test test codebase-memory-install codebase-memory-status codebase-memory-index claude-mcp-status claude-mcp-install claude-mcp-install-hub healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs storage-prune
+.PHONY: setup hub-pages project-pages docs-dev docs-build docs-audit docs-check llms index reindex index-all watch watch-all hub-dev hub-status hub-install hub-start hub-stop hub-restart hub-uninstall hub-launchd-status hub-logs hub-menu-build hub-menu-start hub-menu-stop hub-menu-restart hub-menu-status mcp-dev mcp-test test codebase-memory-install codebase-memory-status codebase-memory-index claude-mcp-status claude-mcp-install claude-mcp-install-hub kimi-mcp-status kimi-mcp-install kimi-mcp-install-hub healthcheck rag-health check-secrets lint scaffold-docs scaffold-docs-write skill-audit project-onboard quality-profile verify-patch prepare-review pre-publish review-status decision-status decision-benchmark logs clean-cache validate-configs storage-prune
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -118,6 +118,15 @@ claude-mcp-install:
 
 claude-mcp-install-hub:
 	$(PYTHON) scripts/claude-mcp configure --hub --write
+
+kimi-mcp-status:
+	$(PYTHON) scripts/kimi-mcp status --project "$(PROJECT)"
+
+kimi-mcp-install:
+	$(PYTHON) scripts/kimi-mcp configure --project "$(PROJECT)" --write
+
+kimi-mcp-install-hub:
+	$(PYTHON) scripts/kimi-mcp configure --hub --write
 
 healthcheck:
 	$(PYTHON) scripts/healthcheck

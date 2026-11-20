@@ -150,7 +150,7 @@ Watcher работает в foreground-режиме через `make watch`, `ma
 
 На macOS optional persistent-режим строится через `launchd`: `scripts/hub-launchd` устанавливает user LaunchAgent `local.ai-docs-hub.runtime`, который запускает тот же `scripts/hub-dev`.
 
-Persistent runtime отделен от глобальных configs агентских клиентов. Claude Code MCP-подключения настраиваются через `scripts/claude-mcp` (`docs/operations/claude-code.md`); Codex MCP-подключения настраиваются отдельной точечной правкой `~/.codex/config.toml`.
+Persistent runtime отделен от глобальных configs агентских клиентов. Claude Code MCP-подключения настраиваются через `scripts/claude-mcp` (`docs/operations/claude-code.md`); Kimi Code MCP-подключения настраиваются через `scripts/kimi-mcp` (`docs/operations/kimi-code.md`); Codex MCP-подключения настраиваются отдельной точечной правкой `~/.codex/config.toml`.
 
 ### Fix Actions
 

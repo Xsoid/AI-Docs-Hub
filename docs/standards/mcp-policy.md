@@ -85,6 +85,8 @@ Global `~/.codex/config.toml` можно редактировать только
 
 Claude Code MCP registration в `~/.claude.json` меняется только через `scripts/claude-mcp`: dry-run по умолчанию, запись только local-scope `mcpServers` выбранного project dir и только Hub-managed entries. Процедура и правила записи описаны в `docs/operations/claude-code.md`.
 
+Kimi Code MCP registration в user-level `~/.kimi-code/mcp.json` (`$KIMI_CODE_HOME/mcp.json`) меняется только через `scripts/kimi-mcp`: dry-run по умолчанию, запись только Hub-managed entries выбранной цели, entries других проектов и чужие servers не затрагиваются. Hub не пишет project-level `.kimi-code/mcp.json` в connected projects. Процедура описана в `docs/operations/kimi-code.md`.
+
 Project files считаются read-only, кроме explicit scaffold и Skill Intelligence proposal workflows с `confirm=true`.
 
 Подключение отдельного проекта к локальному Hub, включая project-scoped MCP entry и managed routing rules, не является изменением source documentation Hub. Такой onboarding не должен создавать tracked-файлы в `docs/`, `docs-site/` или `docs/changes/`. Change note нужен только для изменения самой политики или реализации этого workflow.
